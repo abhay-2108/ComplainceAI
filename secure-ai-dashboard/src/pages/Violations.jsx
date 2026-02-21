@@ -72,7 +72,13 @@ const Violations = () => {
                             <div key={placeholder} className="min-w-[120px] md:min-w-[140px]">
                                 <label className="block text-[10px] md:text-xs font-medium text-slate-500 mb-1 uppercase tracking-wider truncate">{placeholder}</label>
                                 <select className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs md:text-sm rounded-lg p-1.5 md:p-2.5 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer hover:bg-slate-100">
-                                    <option>All {placeholder === 'Date Range' ? 'Dates' : placeholder}s</option>
+                                    <option>
+                                        All {
+                                            placeholder === 'Date Range' ? 'Dates' :
+                                                placeholder === 'Status' ? 'Statuses' :
+                                                    `${placeholder}s`
+                                        }
+                                    </option>
                                 </select>
                             </div>
                         ))}
