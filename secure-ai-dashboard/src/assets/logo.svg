@@ -1,0 +1,28 @@
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="shieldGradient" x1="100" y1="20" x2="100" y2="180" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#3B82F6"/>
+      <stop offset="100%" stop-color="#1E40AF"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+  
+  <!-- Shield Shape -->
+  <path d="M100 20C60 20 30 30 30 60V90C30 130 60 160 100 180C140 160 170 130 170 90V60C170 30 140 20 100 20Z" fill="url(#shieldGradient)" stroke="#2563EB" stroke-width="4"/>
+  
+  <!-- Circuit/Brain Pattern Overlay -->
+  <path d="M100 50V80" stroke="#93C5FD" stroke-width="3" stroke-linecap="round"/>
+  <path d="M100 80L80 100" stroke="#93C5FD" stroke-width="3" stroke-linecap="round"/>
+  <path d="M100 80L120 100" stroke="#93C5FD" stroke-width="3" stroke-linecap="round"/>
+  <path d="M80 100V130" stroke="#93C5FD" stroke-width="3" stroke-linecap="round"/>
+  <path d="M120 100V130" stroke="#93C5FD" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="100" cy="80" r="4" fill="#FFFFFF"/>
+  <circle cx="80" cy="100" r="4" fill="#FFFFFF"/>
+  <circle cx="120" cy="100" r="4" fill="#FFFFFF"/>
+  
+  <!-- Checkmark/Secure Symbol -->
+  <path d="M75 115L95 135L135 95" stroke="#4ADE80" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)"/>
+</svg>
