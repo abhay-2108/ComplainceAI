@@ -4,23 +4,35 @@ import DataTable from '../components/DataTable';
 import StatusBadge from '../components/StatusBadge';
 import { Filter, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { getViolations } from '../services/api';
 
 const Violations = () => {
     const navigate = useNavigate();
     const [filter, setFilter] = useState('All');
+    const [violations, setViolations] = useState([]);
+    const [loading, setLoading] = useState(true);
 
-    // Dummy data
-    const allViolations = Array.from({ length: 50 }).map((_, i) => {
-        const riskScore = Math.floor(Math.random() * 100);
-        return {
-            id: `V-${2930 + i}`,
-            type: ['GDPR - PII Exposure', 'Unencrypted Transfer', 'Data Retention Exceeded', 'Unauthorized Access', 'Schema Mismatch'][i % 5],
-            source: ['Customer_DB', 'Payment_Gateway', 'Logs_Archive', 'HR_Records', 'User_Profile'][i % 5],
-            date: `2023-10-${String(Math.floor(Math.random() * 30) + 1).padStart(2, '0')}`,
-            status: i % 3 === 0 ? 'High' : i % 2 === 0 ? 'Medium' : 'Low',
-            riskScore: Math.floor(Math.random() * 40) + 60
+    React.useEffect(() => {
+        const fetchViolationsData = async () => {
+            try {
+                const data = await getViolations();
+                const mappedData = data.map(v => ({
+                    id: v.id,
+                    type: v.type,
+                    source: v.source,
+                    date: v.date,
+                    riskScore: v.riskScore,
+                    status: v.status
+                }));
+                setViolations(mappedData);
+                setLoading(false);
+            } catch (error) {
+                console.error("Error fetching violations:", error);
+                setLoading(false);
+            }
         };
-    });
+        fetchViolationsData();
+    }, []);
 
     const columns = [
         { header: 'Violation ID', accessor: 'id' },
@@ -89,7 +101,7 @@ const Violations = () => {
             <Card noPadding>
                 <DataTable
                     columns={columns}
-                    data={allViolations}
+                    data={violations}
                     onRowClick={(row) => navigate(`/violations/${row.id}`, { state: { violation: row } })}
                 />
                 <div className="px-6 py-4 border-t border-slate-100 flex justify-between items-center">

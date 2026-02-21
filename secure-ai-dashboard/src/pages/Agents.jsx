@@ -9,14 +9,46 @@ import {
     Clock,
     ArrowRight,
     Database,
-    BrainCircuit
+    BrainCircuit,
+    Play
 } from 'lucide-react';
 import Card from '../components/Card';
 import clsx from 'clsx';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { getAgentsStatus, runAgents } from '../services/api';
 
 const Agents = () => {
     const [selectedAgent, setSelectedAgent] = useState('policy');
+    const [agentStats, setAgentStats] = useState([]);
+    const [running, setRunning] = useState(false);
+
+    const fetchAgentStatus = async () => {
+        try {
+            const data = await getAgentsStatus();
+            setAgentStats(data);
+        } catch (error) {
+            console.error("Error fetching agent status:", error);
+        }
+    };
+
+    React.useEffect(() => {
+        fetchAgentStatus();
+        const interval = setInterval(fetchAgentStatus, 10000);
+        return () => clearInterval(interval);
+    }, []);
+
+    const handleRunAgents = async () => {
+        setRunning(true);
+        try {
+            await runAgents();
+            alert("Autonomous monitoring triggered successfully!");
+            fetchAgentStatus();
+        } catch (error) {
+            console.error("Error running agents:", error);
+        } finally {
+            setRunning(false);
+        }
+    };
 
     const agents = [
         {
@@ -131,10 +163,20 @@ const Agents = () => {
                     <h2 className="text-lg md:text-2xl font-bold text-slate-900">Agent Network Status</h2>
                     <p className="text-xs md:text-base text-slate-500 mt-0.5 md:mt-1">Real-time view of autonomous compliance agents</p>
                 </div>
-                <div className="flex items-center gap-1.5 md:gap-2 px-2.5 py-1 md:px-3 md:py-1.5 bg-green-50 text-green-700 rounded-full text-xs md:text-sm font-medium border border-green-200">
-                    <Activity className="w-3.5 h-3.5 md:w-4 md:h-4 animate-pulse" />
-                    <span className="hidden md:inline">System Healthy</span>
-                    <span className="md:hidden">Healthy</span>
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={handleRunAgents}
+                        disabled={running}
+                        className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-blue-800 disabled:opacity-50"
+                    >
+                        <Play className={clsx("w-4 h-4", running && "animate-spin")} />
+                        {running ? 'Processing...' : 'Run Monitoring'}
+                    </button>
+                    <div className="flex items-center gap-1.5 md:gap-2 px-2.5 py-1 md:px-3 md:py-1.5 bg-green-50 text-green-700 rounded-full text-xs md:text-sm font-medium border border-green-200">
+                        <Activity className="w-3.5 h-3.5 md:w-4 md:h-4 animate-pulse" />
+                        <span className="hidden md:inline">System Healthy</span>
+                        <span className="md:hidden">Healthy</span>
+                    </div>
                 </div>
             </div>
 
@@ -164,8 +206,8 @@ const Agents = () => {
 
                             <div className="mt-auto pt-4 w-full hidden md:block">
                                 <div className="flex items-center justify-center gap-1.5 text-xs font-medium text-slate-600 bg-slate-50 py-1.5 rounded-lg border border-slate-100">
-                                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                                    {agent.stats.status}
+                                    <div className={`w-2 h-2 rounded-full animate-pulse ${agentStats.find(as => as.id === agent.id)?.status === 'Offline' ? 'bg-red-500' : 'bg-green-500'}`}></div>
+                                    {agentStats.find(as => as.id === agent.id)?.status || agent.stats.status}
                                 </div>
                             </div>
 
