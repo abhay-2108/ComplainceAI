@@ -22,6 +22,10 @@ class ComplianceCrew:
         self.rag_agent = PolicyRAGAgent().get_agent()
         self.explanation_agent = ExplanationAgent().get_agent()
         self.reporting_agent = ReportingAgent().get_agent()
+        
+        # State Management
+        self.is_running = False
+        self._loop_task = None
 
     def create_crew(self, transaction_data: dict, policy_context: list, risk_result: dict):
         # Define Tasks
@@ -53,60 +57,94 @@ class ComplianceCrew:
             verbose=True
         )
 
+    async def start_monitoring(self):
+        """Start the autonomous monitoring loop if not already running."""
+        if self.is_running:
+            return
+        
+        self.is_running = True
+        self._loop_task = asyncio.create_task(self.run_autonomous_loop())
+        logger.info("Compliance monitoring loop started manually.")
+
+    async def stop_monitoring(self):
+        """Stop the autonomous monitoring loop."""
+        if not self.is_running:
+            return
+        
+        self.is_running = False
+        if self._loop_task:
+            self._loop_task.cancel()
+            try:
+                await self._loop_task
+            except asyncio.CancelledError:
+                pass
+        logger.info("Compliance monitoring loop stopped manually.")
+
+    async def batch_process_unprocessed(self, limit: int = 50):
+        """Process a batch of unprocessed transactions once."""
+        logger.info(f"Triggering batch processing for {limit} transactions...")
+        unprocessed = await db.get_unprocessed_transactions(limit=limit)
+        
+        if not unprocessed:
+            logger.info("No unprocessed transactions found.")
+            return
+
+        for txn in unprocessed:
+            await self._process_single_transaction(txn)
+        
+        logger.info(f"Batch processing complete for {len(unprocessed)} transactions.")
+
+    async def _process_single_transaction(self, txn: dict):
+        """Internal helper to process a single record with the RF ML model and CrewAI."""
+        try:
+            logger.info(f"Processing transaction: {txn['transaction_id']}")
+
+            # Detection Phase — use full transaction dict to get all RF features
+            risk_result = predictor.predict_from_transaction(txn)
+            logger.info(f"Phase 1: ML Score = {risk_result.risk_score:.4f} ({risk_result.risk_level})")
+
+            if risk_result.is_violation:
+                logger.info("Phase 2: High risk detected. Entering RAG + CrewAI workflow...")
+                # RAG Phase — retrieve relevant policy context (Wrap sync call)
+                query = f"Compliance rules for {txn.get('transaction_type') or txn.get('payment_format', 'general transaction')}"
+                context = await asyncio.to_thread(retriever.retrieve, query)
+                logger.info(f"Phase 3: RAG context retrieved ({len(context)} chunks)")
+
+                # Agent Orchestration Phase (Wrap sync call)
+                logger.info("Phase 4: Starting CrewAI explanation generation...")
+                crew = self.create_crew(txn, context, risk_result.dict())
+                result = await asyncio.to_thread(crew.kickoff)
+                explanation = str(result)
+                logger.info("Phase 5: CrewAI explanation complete.")
+            else:
+                logger.info("Phase 2: Low risk. Skipping RAG + LLM.")
+                explanation = "No violation detected by Random Forest model."
+
+            # Reporting Phase — update MongoDB record
+            await db.update_transaction_status(
+                transaction_id=txn['transaction_id'],
+                risk_score=risk_result.risk_score * 100,
+                risk_level=risk_result.risk_level,
+                violation_flag=risk_result.is_violation
+            )
+            logger.info(f"Completed: {txn['transaction_id']} → {risk_result.risk_level} ({risk_result.risk_score:.4f})")
+
+        except Exception as e:
+            logger.error(f"Error processing transaction {txn.get('transaction_id')}: {e}", exc_info=True)
+
+
     async def run_autonomous_loop(self):
-        """
-        Main autonomous execution loop.
-        1. Fetch unprocessed transactions (Monitoring)
-        2. Run ML Prediction (Detection)
-        3. Fetch Policy Context (RAG)
-        4. Trigger CrewAI for Details
-        5. Update MongoDB (Reporting)
-        """
-        while True:
+        """Main autonomous execution loop."""
+        while self.is_running:
             logger.info("Autonomous Monitoring Cycle Started...")
             try:
-                # 1. Monitoring Phase
                 unprocessed = await db.get_unprocessed_transactions(limit=1)
                 if not unprocessed:
                     logger.info("No new transactions to process. Sleeping for 30s...")
                     await asyncio.sleep(30)
                     continue
 
-                txn = unprocessed[0]
-                logger.info(f"Processing transaction: {txn['transaction_id']}")
-
-                # 2. Detection Phase
-                risk_input = RiskInput(
-                    amount=txn.get('amount', 0),
-                    transaction_type=txn.get('transaction_type', 'UNKNOWN'),
-                    account_age=365,
-                    frequency=1.0
-                )
-                risk_result = predictor.predict(risk_input)
-
-                if risk_result.is_violation:
-                    # 3. RAG Phase
-                    query = f"Compliance rules for {txn.get('transaction_type', 'general transaction')}"
-                    context = retriever.retrieve(query)
-                    
-                    # 4. Agent Orchestration Phase
-                    crew = self.create_crew(txn, context, risk_result.dict())
-                    result = crew.kickoff()
-                    
-                    explanation = str(result)
-                else:
-                    explanation = "No violation detected by ML model."
-
-                # 5. Reporting Phase (Update DB)
-                await db.update_transaction_status(
-                    transaction_id=txn['transaction_id'],
-                    risk_score=risk_result.risk_score * 100,
-                    risk_level=risk_result.risk_level,
-                    violation_flag=risk_result.is_violation
-                )
-                
-                # If violation, we could also log progress here
-                logger.info(f"Completed processing for {txn['transaction_id']}. Result: {risk_result.risk_level}")
+                await self._process_single_transaction(unprocessed[0])
 
             except Exception as e:
                 logger.error(f"Error in autonomous loop: {e}")

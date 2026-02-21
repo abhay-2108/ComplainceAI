@@ -1,12 +1,12 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Card from '../components/Card';
 import DataTable from '../components/DataTable';
 import StatusBadge from '../components/StatusBadge';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { ArrowUpRight, ArrowDownRight, Activity, AlertTriangle, ShieldAlert, CheckCircle } from 'lucide-react';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { ArrowUpRight, ArrowDownRight, Activity, AlertTriangle, ShieldAlert, CheckCircle, DollarSign, Database, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
-import { getDashboardMetrics, getViolations } from '../services/api';
+import { getDashboardMetrics, getViolations, runAgents } from '../services/api';
 
 const MetricCard = ({ title, value, change, trend = 'up', icon: Icon, color }) => (
     <Card className="relative overflow-hidden group hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-none shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] p-3 md:p-5">
@@ -35,11 +35,12 @@ const MetricCard = ({ title, value, change, trend = 'up', icon: Icon, color }) =
 
 const Dashboard = () => {
     const navigate = useNavigate();
-    const [liveStats, setLiveStats] = React.useState(null);
-    const [violations, setViolations] = React.useState([]);
-    const [loading, setLoading] = React.useState(true);
+    const [liveStats, setLiveStats] = useState(null);
+    const [violations, setViolations] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [batchRunning, setBatchRunning] = useState(false);
 
-    React.useEffect(() => {
+    useEffect(() => {
         const fetchData = async () => {
             try {
                 const [metricsData, violationsData] = await Promise.all([
@@ -47,7 +48,6 @@ const Dashboard = () => {
                     getViolations()
                 ]);
                 setLiveStats(metricsData);
-                // Only show top 5 on dashboard
                 setViolations(violationsData.slice(0, 5).map(v => ({
                     id: v.id,
                     type: v.type,
@@ -56,7 +56,7 @@ const Dashboard = () => {
                     status: v.status
                 })));
             } catch (error) {
-                console.error("Error fetching dashboard data:", error);
+                console.error('Error fetching dashboard data:', error);
             } finally {
                 setLoading(false);
             }
@@ -66,29 +66,21 @@ const Dashboard = () => {
         return () => clearInterval(interval);
     }, []);
 
-    const data = [
-        { name: '01 Oct', active: 4000, risk: 240 },
-        { name: '02 Oct', active: 3000, risk: 139 },
-        { name: '03 Oct', active: 2000, risk: 980 },
-        { name: '04 Oct', active: 2780, risk: 390 },
-        { name: '05 Oct', active: 1890, risk: 480 },
-        { name: '06 Oct', active: 2390, risk: 380 },
-        { name: '07 Oct', active: 3490, risk: 430 },
-        { name: '08 Oct', active: 4200, risk: 520 },
-        { name: '09 Oct', active: 3100, risk: 310 },
-        { name: '10 Oct', active: 2500, risk: 650 },
-        { name: '11 Oct', active: 2900, risk: 410 },
-        { name: '12 Oct', active: 3800, risk: 290 },
-        { name: '13 Oct', active: 4100, risk: 180 },
-        { name: '14 Oct', active: 3600, risk: 320 },
-    ];
+    const handleBatchScan = async () => {
+        setBatchRunning(true);
+        try { await runAgents(); } catch (e) { console.error(e); } finally { setBatchRunning(false); }
+    };
+
+
 
     const stats = [
-        { title: 'Total Data Records', value: liveStats?.total_records || '500,000', change: '+0%', icon: Activity, color: 'bg-blue-500' },
-        { title: 'AI Scanned Progress', value: liveStats?.records_scanned || '0', change: 'Live', icon: CheckCircle, color: 'bg-green-500' },
-        { title: 'Policy Violations', value: liveStats?.total_violations || '0', change: '0', icon: AlertTriangle, color: 'bg-amber-500' },
-        { title: 'Data Health Score', value: liveStats?.health_score || '100%', change: '+0%', icon: ShieldAlert, color: 'bg-red-500' },
+        { title: 'Total Monitored Vol', value: liveStats?.total_volume || '$0', change: '+2.5%', trend: 'up', icon: DollarSign, color: 'bg-indigo-600' },
+        { title: 'Confirmed Violations', value: liveStats?.total_violations ?? '0', change: 'Live', trend: 'down', icon: ShieldAlert, color: 'bg-red-600' },
+        { title: 'Records Scanned', value: liveStats?.records_scanned || '0', change: 'Active', trend: 'up', icon: Activity, color: 'bg-blue-500' },
+        { title: 'Network Health', value: liveStats?.health_score || '100%', change: '+0.2%', trend: 'up', icon: CheckCircle, color: 'bg-emerald-500' },
     ];
+
+    const COLORS = ['#1E3A8A', '#3B82F6', '#60A5FA', '#93C5FD', '#BFDBFE'];
 
 
     const columns = [
@@ -116,14 +108,27 @@ const Dashboard = () => {
 
     return (
         <div className="space-y-6">
+            {/* Header row */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                    <h2 className="text-2xl font-bold text-slate-900">AML Command Center</h2>
+                    <p className="text-slate-500 text-sm mt-1">Live database metrics · auto-refreshes every 15s</p>
+                </div>
+                <button onClick={handleBatchScan} disabled={batchRunning}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:bg-blue-800 shadow-md disabled:opacity-60">
+                    <Database className={clsx('w-4 h-4', batchRunning && 'animate-pulse')} />
+                    {batchRunning ? 'Scanning…' : 'Scan Entire Database'}
+                </button>
+            </div>
+
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
                 {stats.map((stat, index) => (
                     <MetricCard
                         key={index}
                         title={stat.title}
-                        value={stat.value}
+                        value={loading ? '…' : stat.value}
                         change={stat.change}
-                        trend={stat.change.startsWith('+') ? 'up' : 'down'}
+                        trend={stat.trend}
                         icon={stat.icon}
                         color={stat.color}
                     />
@@ -131,23 +136,52 @@ const Dashboard = () => {
             </div>
 
             <div className="flex flex-col gap-6">
-                <Card title="Risk Trend Analysis" className="w-full">
-                    <div className="h-64 md:h-96 w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={liveStats?.trend || []}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} dy={10} />
-                                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
-                                <Tooltip
-                                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                                    itemStyle={{ fontSize: '12px', fontWeight: 500 }}
-                                />
-                                <Line type="monotone" dataKey="active" stroke="#1E3A8A" strokeWidth={3} dot={true} activeDot={{ r: 6, strokeWidth: 0 }} />
-                                <Line type="monotone" dataKey="risk" stroke="#DC2626" strokeWidth={3} dot={true} />
-                            </LineChart>
-                        </ResponsiveContainer>
-                    </div>
-                </Card>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <Card title="Transaction & Risk Trend (Live from DB)" className="w-full">
+                        {loading || !liveStats?.trend?.length ? (
+                            <div className="h-64 md:h-80 flex items-center justify-center text-slate-400 text-sm">
+                                {loading ? 'Loading trend data…' : 'No trend data yet. Start monitoring to generate data.'}
+                            </div>
+                        ) : (
+                            <div className="h-64 md:h-80 w-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <LineChart data={liveStats.trend}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 11 }} dy={10} />
+                                        <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
+                                        <Tooltip
+                                            contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                            itemStyle={{ fontSize: '12px', fontWeight: 500 }}
+                                        />
+                                        <Line type="monotone" dataKey="active" name="Total" stroke="#1E3A8A" strokeWidth={3} dot={{ r: 3, fill: '#1E3A8A', strokeWidth: 0 }} activeDot={{ r: 6, strokeWidth: 0 }} />
+                                        <Line type="monotone" dataKey="risk" name="Violations" stroke="#DC2626" strokeWidth={3} dot={{ r: 3, fill: '#DC2626', strokeWidth: 0 }} />
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            </div>
+                        )}
+                    </Card>
+
+                    <Card title="Payment Format Distribution" className="w-full">
+                        <div className="h-64 md:h-80 w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={liveStats?.format_distribution || []} layout="vertical">
+                                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
+                                    <XAxis type="number" hide />
+                                    <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} width={100} />
+                                    <Tooltip
+                                        cursor={{ fill: 'transparent' }}
+                                        contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px' }}
+                                    />
+                                    <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={20}>
+                                        {(liveStats?.format_distribution || []).map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </Card>
+                </div>
 
                 <Card title="Recent Violations" action={<button onClick={() => navigate('/violations')} className="text-sm text-primary font-medium hover:underline">View All</button>} className="w-full" noPadding>
                     <DataTable columns={columns} data={violations} />

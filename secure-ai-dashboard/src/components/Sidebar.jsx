@@ -11,6 +11,7 @@ import {
     Settings,
     LogOut,
     User,
+    Brain,
     X
 } from 'lucide-react';
 import clsx from 'clsx';
@@ -21,6 +22,7 @@ const Sidebar = ({ isOpen, onClose }) => {
     const navItems = [
         { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
         { icon: BrainCircuit, label: 'Agent Network', path: '/agents' },
+        { icon: Brain, label: 'Model Analytics', path: '/predictions' },
         { icon: AlertTriangle, label: 'Violations', path: '/violations' },
         { icon: FileText, label: 'Policies', path: '/policies' },
         { icon: BarChart3, label: 'Reports', path: '/reports' },

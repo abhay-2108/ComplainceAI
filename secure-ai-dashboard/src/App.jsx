@@ -8,6 +8,7 @@ import Policies from './pages/Policies';
 import Reports from './pages/Reports';
 import AuditLogs from './pages/AuditLogs';
 import Agents from './pages/Agents';
+import Predictions from './pages/Predictions';
 import Settings from './pages/Settings';
 
 const App = () => {
@@ -17,6 +18,7 @@ const App = () => {
         <Route path="/" element={<Layout />}>
           <Route index element={<Dashboard />} />
           <Route path="agents" element={<Agents />} />
+          <Route path="predictions" element={<Predictions />} />
           <Route path="violations" element={<Violations />} />
           <Route path="violations/:id" element={<ViolationDetails />} />
           <Route path="policies" element={<Policies />} />

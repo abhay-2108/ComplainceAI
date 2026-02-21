@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     DATABASE_NAME: str = os.getenv("DATABASE_NAME", "compliance_ai")
     
     # ML Model
-    MODEL_PATH: str = os.getenv("MODEL_PATH", "backend/models/compliance_model.pkl")
+    MODEL_PATH: str = os.getenv("MODEL_PATH", "backend/models/random_forest_model.pkl")
     
     # RAG & Embeddings
     CHROMA_DB_PATH: str = os.getenv("CHROMA_DB_PATH", "backend/db/chroma")

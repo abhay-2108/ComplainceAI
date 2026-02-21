@@ -5,31 +5,53 @@ from backend.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
+
 class ModelLoader:
     _instance = None
-    _model = None
 
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(ModelLoader, cls).__new__(cls)
+            cls._instance.model    = None   # sklearn RandomForestClassifier
+            cls._instance.encoders = {}     # dict[str, LabelEncoder]
+            cls._instance.features = []     # ordered list of feature names
             cls._instance._load_model()
         return cls._instance
 
     def _load_model(self):
-        if os.path.exists(settings.MODEL_PATH):
-            try:
-                self._model = joblib.load(settings.MODEL_PATH)
-                logger.info(f"ML Model loaded successfully from {settings.MODEL_PATH}")
-            except Exception as e:
-                logger.error(f"Error loading ML model from {settings.MODEL_PATH}: {e}")
-                self._model = None
-        else:
-            logger.warning(f"ML Model not found at {settings.MODEL_PATH}. Prediction service will use heuristic fallback.")
-            self._model = None
+        path = settings.MODEL_PATH
+        if not os.path.exists(path):
+            logger.warning(f"ML Model not found at {path}. Heuristic fallback active.")
+            return
+        try:
+            pipeline = joblib.load(path)
+
+            # New format: dict with keys 'model', 'encoders', 'features'
+            if isinstance(pipeline, dict):
+                self.model    = pipeline.get("model")
+                self.encoders = pipeline.get("encoders", {})
+                self.features = pipeline.get("features", [])
+                logger.info(
+                    f"Pipeline loaded from {path}. "
+                    f"Features ({len(self.features)}): {self.features}"
+                )
+            else:
+                # Legacy: bare sklearn model (old pkl format)
+                self.model    = pipeline
+                self.encoders = {}
+                self.features = list(getattr(pipeline, "feature_names_in_", []))
+                logger.info(f"Bare model loaded from {path} (legacy format).")
+
+        except Exception as e:
+            logger.error(f"Error loading ML model from {path}: {e}")
+            self.model    = None
+            self.encoders = {}
+            self.features = []
 
     @property
-    def model(self):
-        return self._model
+    def is_ready(self) -> bool:
+        return self.model is not None
 
-# Simple way to get the singleton instance
+
+# Singleton
 model_loader = ModelLoader()

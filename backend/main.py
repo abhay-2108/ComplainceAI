@@ -2,7 +2,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.config.settings import settings
-from backend.api.routes import dashboard, violations, policies, agents, risk, rag, auth, transactions
+from backend.api.routes import dashboard, violations, policies, agents, risk, rag, auth, transactions, reports, audit, predictions
 
 from backend.core.startup import start_app_handler, stop_app_handler
 
@@ -43,6 +43,9 @@ def create_app() -> FastAPI:
     app.include_router(rag.router, prefix="/api/rag", tags=["RAG Test"])
     app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
     app.include_router(transactions.router, prefix="/api/transactions", tags=["Transactions"])
+    app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
+    app.include_router(audit.router, prefix="/api/audit", tags=["Audit Logs"])
+    app.include_router(predictions.router, prefix="/api/predictions", tags=["Predictions"])
 
     @app.get("/health", tags=["Health"])
     async def health_check():

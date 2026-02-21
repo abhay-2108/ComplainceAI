@@ -10,11 +10,11 @@ async def start_app_handler(app: FastAPI) -> None:
     await db.connect_to_storage()
     await db.create_indexes()
     
-    # Start Autonomous Compliance Monitoring Loop
-    from backend.agents.crew import compliance_crew
-    asyncio.create_task(compliance_crew.run_autonomous_loop())
+    # Autonomous monitoring now requires manual trigger via API/Dashboard
+    # from backend.agents.crew import compliance_crew
+    # asyncio.create_task(compliance_crew.run_autonomous_loop())
     
-    logger.info("Application startup complete. Autonomous monitoring active.")
+    logger.info("Application startup complete. Database connected.")
 
 async def stop_app_handler(app: FastAPI) -> None:
     logger.info("Closing MongoDB connection...")
