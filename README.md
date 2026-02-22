@@ -204,7 +204,9 @@ Navigate to `http://localhost:5173` in your browser.
 
 ## 👥 Team
 
-- **Abhay Tiwari** — Full Stack Developer & AI Engineer
+- **[Mohita](https://github.com/mohita110)** - Full Stack Developer & AI Engineer
+
+- **[Abhay Tiwari](https://github.com/abhay-2108)** - Full Stack Developer & AI Engineer 
 
 ---
 
