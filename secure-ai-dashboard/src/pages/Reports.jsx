@@ -7,7 +7,8 @@ import {
 } from 'recharts';
 import {
     FileText, Download, RefreshCw, TrendingUp, AlertTriangle, ShieldCheck,
-    Users, Calendar, BarChart3, PieChart as PieIcon, ArrowUpRight, DollarSign
+    Users, Calendar, BarChart3, PieChart as PieIcon, ArrowUpRight, DollarSign,
+    BrainCircuit, MessageSquare, Fingerprint, Activity
 } from 'lucide-react';
 import { getReports } from '../services/api';
 
@@ -61,10 +62,10 @@ const Reports = () => {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                    <h2 className="text-2xl font-black text-black flex items-center gap-2">
                         <FileText className="w-6 h-6 text-primary" /> Compliance Reports
                     </h2>
-                    <p className="text-slate-500 text-sm mt-1">Live aggregated AML insights from your MongoDB database</p>
+                    <p className="text-slate-600 text-sm mt-1 font-semibold">Live aggregated AML insights from your MongoDB database</p>
                 </div>
                 <div className="flex gap-3">
                     <button onClick={() => { setLoading(true); getReports().then(d => { setData(d); setLoading(false); }); }}
@@ -81,17 +82,17 @@ const Reports = () => {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[
                     { label: 'Total Violations', value: totalViolations || '—', icon: AlertTriangle, color: 'text-red-600 bg-red-50' },
-                    { label: 'Violation Types', value: data?.risk_distribution?.length || '—', icon: PieIcon, color: 'text-blue-600 bg-blue-50' },
-                    { label: 'Days Tracked', value: data?.daily_trend?.length || '—', icon: Calendar, color: 'text-purple-600 bg-purple-50' },
-                    { label: 'Top Accounts', value: data?.top_accounts?.length || '—', icon: Users, color: 'text-emerald-600 bg-emerald-50' },
+                    { label: 'Avg Risk Score', value: data?.stats?.avg_risk_score ? `${data.stats.avg_risk_score}%` : '—', icon: Activity, color: 'text-blue-600 bg-blue-50' },
+                    { label: 'Pipeline Coverage', value: data?.stats?.pipeline_coverage || '—', icon: ShieldCheck, color: 'text-purple-600 bg-purple-50' },
+                    { label: 'Records Scanned', value: data?.stats?.total_scanned?.toLocaleString() || '—', icon: Fingerprint, color: 'text-emerald-600 bg-emerald-50' },
                 ].map((s, i) => (
                     <Card key={i} className="flex items-center gap-4 border-none shadow-sm">
                         <div className={clsx('p-3 rounded-xl', s.color)}>
                             <s.icon className="w-5 h-5" />
                         </div>
                         <div>
-                            <p className="text-xs text-slate-500 font-medium">{s.label}</p>
-                            <p className="text-2xl font-bold text-slate-900">{loading ? '…' : s.value}</p>
+                            <p className="text-xs text-slate-600 font-bold uppercase tracking-wider">{s.label}</p>
+                            <p className="text-2xl font-black text-black">{loading ? '…' : s.value}</p>
                         </div>
                     </Card>
                 ))}
@@ -102,6 +103,7 @@ const Reports = () => {
                 {[
                     { id: 'overview', label: 'Overview', icon: PieIcon },
                     { id: 'trend', label: 'Daily Trend', icon: TrendingUp },
+                    { id: 'narratives', label: 'Agent Narratives', icon: MessageSquare },
                     { id: 'accounts', label: 'Top Accounts', icon: Users },
                 ].map(tab => (
                     <button key={tab.id} onClick={() => setActiveTab(tab.id)}
@@ -199,20 +201,20 @@ const Reports = () => {
                             <thead className="bg-slate-50 border-b border-slate-100">
                                 <tr>
                                     {['Account ID', 'Violations', 'Total Amount', 'Risk'].map(h => (
-                                        <th key={h} className="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wide">{h}</th>
+                                        <th key={h} className="px-6 py-3 text-left text-xs font-black text-black uppercase tracking-wide">{h}</th>
                                     ))}
                                 </tr>
                             </thead>
                             <tbody>
                                 {(data?.top_accounts || []).map((acc, i) => (
                                     <tr key={i} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                                        <td className="px-6 py-4 font-mono text-sm text-primary font-semibold">{acc.account || 'N/A'}</td>
+                                        <td className="px-6 py-4 font-mono text-sm text-primary font-black">{acc.account || 'N/A'}</td>
                                         <td className="px-6 py-4">
-                                            <span className="px-2.5 py-1 bg-red-50 text-red-700 rounded-full text-sm font-bold border border-red-100">
+                                            <span className="px-2.5 py-1 bg-red-50 text-red-700 rounded-full text-sm font-black border border-red-100">
                                                 {acc.violations}
                                             </span>
                                         </td>
-                                        <td className="px-6 py-4 text-slate-700 font-semibold text-sm">
+                                        <td className="px-6 py-4 text-black font-black text-sm">
                                             ${((acc.total_amount || 0) / 1000).toFixed(1)}K
                                         </td>
                                         <td className="px-6 py-4">
@@ -228,6 +230,60 @@ const Reports = () => {
                         </table>
                     )}
                 </Card>
+            )}
+
+            {/* Agent Narratives Tab */}
+            {activeTab === 'narratives' && (
+                <div className="space-y-4">
+                    <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 flex items-center gap-4">
+                        <div className="p-3 bg-blue-100 rounded-xl">
+                            <BrainCircuit className="w-6 h-6 text-primary" />
+                        </div>
+                        <div>
+                            <p className="font-black text-black">Master Reporting Hub</p>
+                            <p className="text-sm text-slate-600 font-semibold">Consolidated final responses from the Compliance Reporting Agent</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {loading ? (
+                            [1, 2, 3, 4].map(i => (
+                                <Card key={i} className="animate-pulse h-48 bg-slate-50" />
+                            ))
+                        ) : (data?.recent_narratives || []).length === 0 ? (
+                            <div className="col-span-2 py-12 text-center text-slate-400 bg-white rounded-2xl border-2 border-dashed border-slate-100">
+                                <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                                <p>No agent narratives generated yet.</p>
+                            </div>
+                        ) : (data?.recent_narratives || []).map((n, i) => (
+                            <Card key={i} className="group border-slate-100 hover:border-primary/30 transition-all">
+                                <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-black text-xs">
+                                            AI
+                                        </div>
+                                        <span className="font-black text-black text-sm">{n.transaction_id}</span>
+                                    </div>
+                                    <span className="text-[10px] text-slate-400 font-bold uppercase">{new Date(n.timestamp).toLocaleTimeString()}</span>
+                                </div>
+                                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                                    <p className="text-black text-sm leading-relaxed font-semibold italic">
+                                        "{n.explanation?.length > 250 ? n.explanation.substring(0, 250) + '...' : n.explanation}"
+                                    </p>
+                                </div>
+                                <div className="mt-4 flex items-center justify-between">
+                                    <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-bold border border-emerald-100 flex items-center gap-1">
+                                        <ShieldCheck className="w-3 h-3" /> Report Finalized
+                                    </span>
+                                    <button className="text-xs text-primary font-black hover:underline flex items-center gap-1">
+                                        Read Full Report <ArrowUpRight className="w-3 h-3" />
+                                    </button>
+                                </div>
+                            </Card>
+                        ))
+                        }
+                    </div>
+                </div>
             )}
         </div>
     );

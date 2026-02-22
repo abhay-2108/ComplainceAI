@@ -4,17 +4,16 @@ import {
     CheckCircle2, Clock, ArrowRight, Database, BrainCircuit, Play,
     Square, PlayCircle, ChevronDown, Zap, Cpu, Network,
     ShieldCheck, AlertTriangle, BarChart3, Layers, RefreshCw,
-    Hash, BookOpen, Brain
+    Hash, BookOpen, Brain, FileText, Shield
 } from 'lucide-react';
 import Card from '../components/Card';
 import clsx from 'clsx';
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import {
     getAgentsStatus, runAgents, getMonitoringStatus,
     startMonitoring, stopMonitoring, getAgentActivity
 } from '../services/api';
 
-// ─── Static agent metadata (descriptions, capabilities, colors) ────────────────
+// ─── Static agent metadata ──────────────────────────────────────────────────────
 const AGENT_META = {
     policy: {
         title: 'Policy RAG Agent',
@@ -24,13 +23,11 @@ const AGENT_META = {
         accent: 'border-blue-400',
         ring: 'ring-blue-200',
         badge: 'bg-blue-50 text-blue-700 border-blue-200',
-        description: 'Responsible for ingesting compliance policy PDFs, generating SHA-256 deduplicated vector embeddings (nomic-embed-text via Ollama), and storing them in ChromaDB. On each violation, retrieves the top-3 most relevant policy chunks to provide legal context for the LLM explanation.',
+        description: 'Analyzes compliance policies and retrieves relevant clauses for flags.',
         capabilities: [
-            'Parses uploaded PDF policy documents',
-            'SHA-256 content hash — embeddings generated only once per unique document',
-            'Chunks text and encodes with nomic-embed-text (Ollama)',
-            'Stores embeddings in ChromaDB vector store',
-            'Semantic search to retrieve top-3 relevant chunks per transaction',
+            'Vector retrieval from ChromaDB',
+            'Policy clause matching',
+            'Context injection for LLM'
         ],
     },
     monitoring: {
@@ -41,30 +38,26 @@ const AGENT_META = {
         accent: 'border-sky-400',
         ring: 'ring-sky-200',
         badge: 'bg-sky-50 text-sky-700 border-sky-200',
-        description: 'Continuously polls the MongoDB transactions collection for records where is_processed=False. Feeds each unprocessed transaction one at a time into the compliance pipeline, then sleeps 30s when the queue is empty. On-demand batch scan processes up to 20 records instantly.',
+        description: 'Continuously scans the transaction database for unprocessed records.',
         capabilities: [
-            'Polls MongoDB Atlas — targets is_processed: False',
-            'Processes one transaction per cycle (memory-safe)',
-            'Sleeps 30s when no pending records are found',
-            'On-demand batch: processes 20 records in one trigger',
-            'Auto-restarts on pipeline error — resilient loop',
+            'Real-time DB polling',
+            'Concurrent batching (5 threads)',
+            'Autonomous loop control'
         ],
     },
     violation: {
         title: 'Risk Detector',
         shortTitle: 'Detector',
         icon: AlertOctagon,
-        gradient: 'from-amber-500 to-orange-400',
+        gradient: 'from-amber-600 to-orange-500',
         accent: 'border-amber-400',
         ring: 'ring-amber-200',
         badge: 'bg-amber-50 text-amber-700 border-amber-200',
-        description: 'Applies the trained RandomForest classifier (random_forest_model.pkl, 20 features) to score each transaction. Builds full feature vectors from bank IDs, amounts, timestamp (hour/day), payment format, and currency pair. Flags transactions with RF probability ≥ 0.7 as violations.',
+        description: 'ML model scoring transactions based on AML risk patterns.',
         capabilities: [
-            'Loads RandomForest model via joblib (random_forest_model.pkl)',
-            'Builds 20-feature DataFrame: amounts, bank IDs, hour, day, format, currencies',
-            'Uses predict_proba — class 1 probability = laundering risk score',
-            'Threshold: RF score ≥ 0.70 → violation flag (HIGH)',
-            'Risk levels: LOW (<0.40) · MEDIUM (0.40–0.70) · HIGH (≥0.70)',
+            'RandomForest Scoring',
+            '20-feature analysis',
+            'Anomaly detection'
         ],
     },
     explanation: {
@@ -75,13 +68,11 @@ const AGENT_META = {
         accent: 'border-emerald-400',
         ring: 'ring-emerald-200',
         badge: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-        description: 'Triggered only for flagged violations. Retrieves top-3 relevant compliance policy chunks from ChromaDB via semantic search query, then constructs a structured prompt and calls the local Ollama LLM (llama3) to produce an audit-ready explanation. The reasoning is stored in the violations collection.',
+        description: 'Gemini-powered reasoning providing deep narratives for flagging.',
         capabilities: [
-            'Only activates on RF-flagged (HIGH risk) transactions',
-            'Queries ChromaDB for top-3 policy chunks matching the transaction type',
-            'Sends structured prompt to Ollama (POST /api/generate, stream=False)',
-            'Produces professional compliance narrative for auditors',
-            'Explanation persisted in MongoDB violations collection',
+            'Context-aware reasoning',
+            'Multi-agent collaboration',
+            'Gemini 1.5 Pro'
         ],
     },
     reporting: {
@@ -92,18 +83,15 @@ const AGENT_META = {
         accent: 'border-purple-400',
         ring: 'ring-purple-200',
         badge: 'bg-purple-50 text-purple-700 border-purple-200',
-        description: 'Finalizes each violation record in the MongoDB violations collection, updates the transaction\'s is_processed flag, and aggregates data for Dashboard, Reports, Audit Logs, and Predictions analytics pages. All frontend pages refresh data from these aggregated collections every poll cycle.',
+        description: 'Synthesizes agent outputs into final audit-ready records.',
         capabilities: [
-            'Sets is_processed=True on each scanned transaction',
-            'Upserts violation records into violations collection',
-            'Data drives Dashboard metrics, Reports charts, Audit Logs, and Predictions analytics',
-            'Provides risk_level and risk_score fields used across all pages',
-            'Violations stored with RF score, risk level, and AI explanation',
+            'Audit log generation',
+            'Data aggregation',
+            'Final verification'
         ],
     },
 };
 
-// ─── Status Badge ─────────────────────────────────────────────────────────────
 const statusStyles = {
     success: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     danger: 'bg-red-50 text-red-700 border-red-200',
@@ -111,27 +99,36 @@ const statusStyles = {
     info: 'bg-blue-50 text-blue-700 border-blue-200',
     idle: 'bg-slate-50 text-slate-500 border-slate-200',
 };
+
 const statusDot = {
     success: 'bg-emerald-500', danger: 'bg-red-500',
     warn: 'bg-amber-500', info: 'bg-blue-500', idle: 'bg-slate-400',
 };
 
+// ─── Component: Log Entry ────────────────────────────────────────────────────────
 const LogRow = ({ log }) => (
-    <div className="flex items-start gap-3 px-5 py-3.5 border-b border-slate-50 hover:bg-slate-50/60 transition-colors last:border-0">
-        <div className={clsx('mt-1.5 w-2 h-2 rounded-full shrink-0', statusDot[log.status])} />
+    <div className="flex items-start gap-4 px-5 py-4 border-b border-slate-50 hover:bg-slate-50/60 transition-all duration-200 group last:border-0">
+        <div className={clsx('mt-1.5 w-2.5 h-2.5 rounded-full shrink-0 shadow-sm transition-transform group-hover:scale-110', statusDot[log.status])} />
         <div className="flex-1 min-w-0">
-            <p className="text-sm text-slate-700 font-medium leading-snug">{log.event}</p>
-            <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
-                <Clock className="w-3 h-3" />{log.time}
+            <div className="flex items-center justify-between gap-2">
+                <p className="text-sm text-black font-bold leading-snug">{log.event}</p>
+                <span className={clsx('text-[10px] font-bold uppercase px-2 py-0.5 rounded-md border shrink-0', statusStyles[log.status])}>
+                    {log.status}
+                </span>
+            </div>
+            {log.details && (
+                <div className="mt-2 text-[11px] text-slate-500 font-mono bg-slate-100/50 p-2 rounded-lg border border-slate-200/50 max-h-24 overflow-y-auto whitespace-pre-wrap">
+                    {log.details}
+                </div>
+            )}
+            <p className="text-[11px] text-slate-400 mt-1.5 flex items-center gap-1 font-medium">
+                <Clock className="w-3 h-3 text-slate-300" />{log.time}
             </p>
         </div>
-        <span className={clsx('text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border shrink-0 mt-0.5', statusStyles[log.status])}>
-            {log.status}
-        </span>
     </div>
 );
 
-// ─── Pipeline Node ─────────────────────────────────────────────────────────────
+// ─── Component: Pipeline Node ────────────────────────────────────────────────────
 const PipelineNode = ({ agentId, meta, isSelected, isMonitoring, liveStatus, onClick }) => {
     const isMonitoringAgent = agentId === 'monitoring';
     const status = liveStatus?.status || 'Idle';
@@ -140,11 +137,11 @@ const PipelineNode = ({ agentId, meta, isSelected, isMonitoring, liveStatus, onC
         <button onClick={onClick}
             className={clsx(
                 'relative flex flex-col items-center text-center group transition-all duration-300',
-                isSelected ? 'scale-105' : 'hover:scale-105 opacity-80 hover:opacity-100'
+                isSelected ? 'scale-110' : 'hover:scale-105 opacity-80 hover:opacity-100'
             )}>
             <div className={clsx(
-                'absolute inset-0 rounded-2xl blur-lg transition-opacity duration-300',
-                isSelected ? `bg-gradient-to-br ${meta.gradient} opacity-20` : 'opacity-0'
+                'absolute -inset-1 rounded-2xl blur-lg transition-opacity duration-300',
+                isSelected ? `bg-gradient-to-br ${meta.gradient} opacity-25` : 'opacity-0'
             )} />
             <div className={clsx(
                 'relative w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-gradient-to-br flex items-center justify-center text-white shadow-lg border-2 transition-all duration-300',
@@ -153,29 +150,29 @@ const PipelineNode = ({ agentId, meta, isSelected, isMonitoring, liveStatus, onC
             )}>
                 <meta.icon className="w-7 h-7 md:w-9 md:h-9" />
                 <span className={clsx(
-                    'absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white',
+                    'absolute -top-1 -right-1 w-4 h-4 rounded-full border-2 border-white',
                     isMonitoringAgent
-                        ? (isMonitoring ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400')
+                        ? (isMonitoring ? 'bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.5)]' : 'bg-slate-400')
                         : (alive ? 'bg-emerald-400' : 'bg-slate-400')
                 )} />
             </div>
-            <p className="mt-2.5 text-xs md:text-sm font-bold text-slate-800 leading-tight">{meta.shortTitle}</p>
-            <p className={clsx('text-[10px] font-semibold mt-0.5 px-2 py-0.5 rounded-full border', meta.badge)}>
+            <p className="mt-3 text-xs md:text-sm font-black text-black leading-tight tracking-tight">{meta.shortTitle}</p>
+            <p className={clsx('text-[10px] font-bold mt-1 px-2.5 py-0.5 rounded-full border shadow-sm transition-colors', meta.badge)}>
                 {isMonitoringAgent ? (isMonitoring ? 'Running' : 'Stopped') : status}
             </p>
         </button>
     );
 };
 
-// ─── Live Stat Tile from API ───────────────────────────────────────────────────
+// ─── Component: Live Stat Tile ───────────────────────────────────────────────────
 const StatTile = ({ label, value }) => (
-    <Card className="border-none shadow-sm text-center">
-        <p className="text-2xl font-bold text-slate-900">{value ?? '—'}</p>
-        <p className="text-xs text-slate-500 mt-1 font-medium">{label}</p>
+    <Card className="border-none shadow-sm text-center hover:shadow-md transition-shadow group">
+        <p className="text-2xl font-black text-black group-hover:text-primary transition-colors">{value ?? '—'}</p>
+        <p className="text-[10px] text-slate-500 mt-1 font-bold uppercase tracking-wider">{label}</p>
     </Card>
 );
 
-// ─── Build live stats tiles per agent from /status response ───────────────────
+// ─── Function: Helper to build agents stats ─────────────────────────────────────
 const buildStats = (agentId, statusEntry, isMonitoring) => {
     if (!statusEntry) return [{ label: 'Status', value: 'Offline' }];
     switch (agentId) {
@@ -183,49 +180,48 @@ const buildStats = (agentId, statusEntry, isMonitoring) => {
             return [
                 { label: 'Policies Indexed', value: statusEntry.policies_indexed ?? 0 },
                 { label: 'Total Chunks', value: (statusEntry.total_chunks ?? 0).toLocaleString() },
-                { label: 'Embedding Model', value: 'nomic-embed-text' },
-                { label: 'Dedup', value: 'SHA-256 ✓' },
+                { label: 'Embedding Model', value: 'Gemini-Text' },
+                { label: 'Cloud RAG', value: 'Vertex ✓' },
             ];
         case 'monitoring':
             return [
                 { label: 'Pending Records', value: (statusEntry.pending_transactions ?? 0).toLocaleString() },
                 { label: 'Total Scanned', value: (statusEntry.processed_total ?? 0).toLocaleString() },
-                { label: 'Batch Rate', value: '1 / cycle' },
-                { label: 'Loop State', value: isMonitoring ? '● Running' : '● Idle' },
+                { label: 'Batch Rate', value: 'Parallel (5)' },
+                { label: 'Loop State', value: isMonitoring ? '● Active' : '● Idle' },
             ];
         case 'violation':
             return [
                 { label: 'Total Violations', value: (statusEntry.total_violations ?? 0).toLocaleString() },
                 { label: 'High Risk', value: (statusEntry.high_risk ?? 0).toLocaleString() },
                 { label: 'Model', value: 'RandomForest' },
-                { label: 'Threshold', value: 'Score ≥ 0.70' },
+                { label: 'Concur', value: 'Async ✓' },
             ];
         case 'explanation':
             return [
-                { label: 'Explanations Generated', value: (statusEntry.explanations_generated ?? 0).toLocaleString() },
-                { label: 'LLM', value: 'llama3 (Ollama)' },
-                { label: 'RAG Top-K', value: '3 chunks' },
-                { label: 'Trigger', value: 'HIGH risk only' },
+                { label: 'Narratives Drafted', value: (statusEntry.explanations_generated ?? 0).toLocaleString() },
+                { label: 'LLM', value: 'Gemini 1.5 Pro' },
+                { label: 'RAG Context', value: 'Top-3 Chunks' },
+                { label: 'Orchestrater', value: 'CrewAI' },
             ];
         case 'reporting':
             return [
-                { label: 'Records in Report', value: (statusEntry.records_in_report ?? 0).toLocaleString() },
+                { label: 'Audit Records', value: (statusEntry.records_in_report ?? 0).toLocaleString() },
                 { label: 'Storage', value: 'MongoDB Atlas' },
-                { label: 'Feeds', value: 'Dashboard · Audit · Reports' },
-                { label: 'Retention', value: 'Unlimited' },
+                { label: 'Export', value: 'CSV / JSON' },
+                { label: 'Live Sync', value: 'Enabled' },
             ];
         default: return [];
     }
 };
 
-// ─── Main Page ─────────────────────────────────────────────────────────────────
+// ─── Main Page Component ──────────────────────────────────────────────────────────
 const Agents = () => {
     const [selectedId, setSelectedId] = useState('monitoring');
     const [agentStatuses, setAgentStatuses] = useState([]);
     const [isMonitoring, setIsMonitoring] = useState(false);
     const [batchRunning, setBatchRunning] = useState(false);
     const [toastMsg, setToastMsg] = useState(null);
-    const [activeTab, setActiveTab] = useState('log');
     const [liveActivity, setLiveActivity] = useState([]);
     const [loadingActivity, setLoadingActivity] = useState(false);
 
@@ -250,20 +246,20 @@ const Agents = () => {
     const fetchActivity = useCallback(async () => {
         setLoadingActivity(true);
         try {
-            const acts = await getAgentActivity(16);
+            const acts = await getAgentActivity(20, selectedId);
             setLiveActivity(acts);
         } catch (e) {
             console.error('Activity fetch error:', e);
         } finally {
             setLoadingActivity(false);
         }
-    }, []);
+    }, [selectedId]);
 
     useEffect(() => {
         fetchAll();
         fetchActivity();
         const id1 = setInterval(fetchAll, 5000);
-        const id2 = setInterval(fetchActivity, 10000);
+        const id2 = setInterval(fetchActivity, 4000);
         return () => { clearInterval(id1); clearInterval(id2); };
     }, [fetchAll, fetchActivity]);
 
@@ -271,10 +267,10 @@ const Agents = () => {
         try {
             if (isMonitoring) {
                 await stopMonitoring();
-                showToast('Monitoring loop stopped.', 'warn');
+                showToast('Parallel monitoring paused.', 'warn');
             } else {
                 await startMonitoring();
-                showToast('Monitoring loop started — scanning DB every 30s.', 'success');
+                showToast('Concurrent monitoring started — scaling to 5 threads.', 'success');
             }
             fetchAll();
         } catch (e) {
@@ -286,8 +282,8 @@ const Agents = () => {
         setBatchRunning(true);
         try {
             await runAgents();
-            showToast('Batch scan triggered — 20 transactions queued for RF scoring.', 'info');
-            setTimeout(() => { fetchAll(); fetchActivity(); }, 3000);
+            showToast('Parallel batch scan triggered (20 records).', 'info');
+            setTimeout(() => { fetchAll(); fetchActivity(); }, 4000);
         } catch (e) {
             showToast('Batch scan failed.', 'danger');
         } finally {
@@ -300,156 +296,162 @@ const Agents = () => {
     const totalProcessed = getLiveStatus('monitoring')?.processed_total || 0;
     const totalPending = getLiveStatus('monitoring')?.pending_transactions || 0;
     const totalTxns = totalProcessed + totalPending;
-    const scannedPct = totalTxns > 0 ? Math.round((totalProcessed / totalTxns) * 100) : 0;
 
     const meta = AGENT_META[selectedId];
     const liveStat = getLiveStatus(selectedId);
     const stats = buildStats(selectedId, liveStat, isMonitoring);
 
-    // Filter activity log for the selected agent
-    const agentActivity = liveActivity.filter(a =>
-        !a.agent || a.agent === selectedId ||
-        (selectedId === 'monitoring' && !a.agent) ||
-        (selectedId === 'violation') ||
-        (selectedId === 'explanation' && a.agent === 'explanation')
-    ).slice(0, 10);
+    // Latest successful transaction with explanation for "Final Output"
+    const latestResult = liveActivity.find(log => log.agent === 'reporting_agent' && log.explanation);
 
     return (
         <div className="space-y-6">
             {/* Toast */}
             {toastMsg && (
                 <div className={clsx(
-                    'fixed top-5 right-5 z-50 flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-2xl border text-sm font-semibold transition-all duration-300',
-                    toastMsg.type === 'success' && 'bg-emerald-50 text-emerald-800 border-emerald-200',
-                    toastMsg.type === 'warn' && 'bg-amber-50 text-amber-800 border-amber-200',
-                    toastMsg.type === 'danger' && 'bg-red-50 text-red-800 border-red-200',
-                    toastMsg.type === 'info' && 'bg-blue-50 text-blue-800 border-blue-200',
+                    'fixed top-5 right-5 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-2xl border text-sm font-bold transition-all duration-500 animate-in slide-in-from-right-4',
+                    toastMsg.type === 'success' && 'bg-emerald-600 text-white border-emerald-400',
+                    toastMsg.type === 'warn' && 'bg-amber-500 text-white border-amber-300',
+                    toastMsg.type === 'danger' && 'bg-red-600 text-white border-red-400',
+                    toastMsg.type === 'info' && 'bg-blue-600 text-white border-blue-400',
                 )}>
-                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    {toastMsg.type === 'success' ? <CheckCircle2 className="w-5 h-5 shrink-0" /> : <Clock className="w-5 h-5 shrink-0" />}
                     {toastMsg.msg}
                 </div>
             )}
 
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <div>
-                    <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                        <Network className="w-6 h-6 text-primary" /> Agent Network
+                    <h2 className="text-3xl font-black text-black flex items-center gap-3 tracking-tight">
+                        <div className="p-2 bg-primary/10 rounded-xl">
+                            <Network className="w-6 h-6 text-primary" />
+                        </div>
+                        Agent Network
                     </h2>
-                    <p className="text-slate-500 mt-1 text-sm">
-                        5-agent AML pipeline · RandomForest → RAG → Ollama LLM → MongoDB
+                    <p className="text-slate-500 mt-1.5 text-sm font-medium">
+                        Concurrent Pipeline · <span className="text-primary font-bold">RandomForest + Gemini Pro</span> · Parallel Processing Enabled
                     </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                     <button onClick={handleToggleMonitoring}
                         className={clsx(
-                            'flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold shadow-md transition-all duration-200',
+                            'flex items-center gap-2.5 px-6 py-3 rounded-2xl text-sm font-black shadow-lg transition-all active:scale-95',
                             isMonitoring
-                                ? 'bg-red-600 text-white hover:bg-red-700 shadow-red-900/20'
-                                : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-900/20'
+                                ? 'bg-red-500 text-white hover:bg-red-600 shadow-red-200'
+                                : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-200'
                         )}>
-                        {isMonitoring ? <><Square className="w-4 h-4 fill-current" /> Stop Monitoring</>
-                            : <><PlayCircle className="w-4 h-4" /> Start Monitoring</>}
+                        {isMonitoring ? <><Square className="w-4 h-4 fill-current" /> Stop Loop</>
+                            : <><PlayCircle className="w-4 h-4" /> Start Loop</>}
                     </button>
 
                     <button onClick={handleBatchScan} disabled={batchRunning}
-                        className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors shadow-sm">
-                        <RefreshCw className={clsx('w-4 h-4', batchRunning && 'animate-spin')} />
-                        {batchRunning ? 'Scanning…' : 'Batch Scan (20)'}
+                        className="flex items-center gap-2.5 px-5 py-3 bg-white border-2 border-slate-100 rounded-2xl text-sm font-black text-black hover:bg-slate-50 disabled:opacity-50 transition-all shadow-sm active:scale-95">
+                        <RefreshCw className={clsx('w-4 h-4 text-primary', batchRunning && 'animate-spin')} />
+                        {batchRunning ? 'Scaling…' : 'Batch Scaler (20)'}
                     </button>
 
                     <div className={clsx(
-                        'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border',
-                        isMonitoring ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-500 border-slate-200'
+                        'flex items-center gap-2.5 px-5 py-3 rounded-2xl text-sm font-black border-2 transition-all',
+                        isMonitoring ? 'bg-emerald-50 text-emerald-700 border-emerald-100 shadow-sm' : 'bg-slate-50 text-slate-400 border-slate-100'
                     )}>
-                        <Activity className={clsx('w-4 h-4', isMonitoring && 'animate-pulse')} />
-                        {isMonitoring ? 'Live' : 'Idle'}
+                        <div className={clsx('w-2.5 h-2.5 rounded-full shadow-sm', isMonitoring ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300')} />
+                        {isMonitoring ? 'Live Monitoring' : 'Offline'}
                     </div>
                 </div>
             </div>
 
             {/* Fleet Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
                 {[
-                    { label: 'Agents Online', value: `${activeCount} / 5`, icon: Cpu, color: 'text-blue-600 bg-blue-50' },
-                    { label: 'Monitoring', value: isMonitoring ? 'Active' : 'Stopped', icon: Activity, color: isMonitoring ? 'text-emerald-600 bg-emerald-50' : 'text-slate-500 bg-slate-50' },
-                    { label: 'Scanned', value: totalProcessed.toLocaleString(), icon: Zap, color: 'text-amber-600 bg-amber-50' },
-                    { label: 'Pipeline', value: 'RF + RAG + LLM', icon: ShieldCheck, color: 'text-emerald-600 bg-emerald-50' },
+                    { label: 'Active Units', value: `${activeCount} Units`, icon: Cpu, color: 'text-blue-600 bg-blue-50 border-blue-100' },
+                    { label: 'Cloud Status', value: isMonitoring ? 'Connected' : 'Standby', icon: Activity, color: isMonitoring ? 'text-emerald-600 bg-emerald-50 border-emerald-100' : 'text-slate-500 bg-slate-50 border-slate-200' },
+                    { label: 'Throughput', value: `${totalProcessed.toLocaleString()}`, icon: Zap, color: 'text-amber-600 bg-amber-50 border-amber-100' },
+                    { label: 'Intelligence', value: 'Gemini 1.5', icon: BrainCircuit, color: 'text-indigo-600 bg-indigo-50 border-indigo-100' },
                 ].map((s, i) => (
-                    <Card key={i} className="flex items-center gap-4 border-none shadow-sm">
-                        <div className={clsx('p-3 rounded-xl', s.color)}><s.icon className="w-5 h-5" /></div>
+                    <Card key={i} className={clsx('flex items-center gap-4 border-2 shadow-sm hover:shadow-md transition-shadow', s.color)}>
+                        <div className="p-3 rounded-xl bg-white shadow-sm border border-inherit"><s.icon className="w-6 h-6" /></div>
                         <div>
-                            <p className="text-xs text-slate-500 font-medium">{s.label}</p>
-                            <p className="text-xl font-bold text-slate-900">{s.value}</p>
+                            <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-0.5">{s.label}</p>
+                            <p className="text-xl font-bold tracking-tight">{s.value}</p>
                         </div>
                     </Card>
                 ))}
             </div>
 
-            {/* Pipeline Flow */}
-            <Card className="overflow-visible">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-5 flex items-center gap-2">
-                    <Layers className="w-3.5 h-3.5" /> Compliance Pipeline · Click an agent to inspect
-                </p>
-                <div className="flex items-center justify-between gap-2 overflow-x-auto pb-2">
-                    {Object.entries(AGENT_META).map(([id, m], idx, arr) => (
-                        <React.Fragment key={id}>
-                            <PipelineNode
-                                agentId={id} meta={m}
-                                isSelected={selectedId === id}
-                                isMonitoring={isMonitoring}
-                                liveStatus={getLiveStatus(id)}
-                                onClick={() => setSelectedId(id)}
-                            />
-                            {idx < arr.length - 1 && (
-                                <div className="flex-1 flex items-center justify-center min-w-[20px]">
-                                    <div className="flex items-center gap-1">
-                                        <div className="h-0.5 flex-1 bg-gradient-to-r from-slate-200 to-slate-300 hidden md:block" style={{ minWidth: 20 }} />
-                                        <ArrowRight className="w-4 h-4 text-slate-400 shrink-0" />
-                                        <div className="h-0.5 flex-1 bg-gradient-to-r from-slate-300 to-slate-200 hidden md:block" style={{ minWidth: 20 }} />
-                                    </div>
+            {/* Pipeline Flow Area */}
+            <Card className="overflow-visible border-2 border-slate-100 mb-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                    <p className="text-[11px] font-black text-slate-400 upper-case tracking-[0.2em] flex items-center gap-3">
+                        <Layers className="w-4 h-4 text-primary opacity-60" /> Distributed Pipeline Orchestration
+                    </p>
+                    <div className="flex items-center gap-4 text-[10px] font-bold text-slate-400">
+                        <div className="flex items-center gap-1.5 whitespace-nowrap"><div className="w-2.5 h-2.5 rounded-full bg-emerald-400" /> Active</div>
+                        <div className="flex items-center gap-1.5 whitespace-nowrap"><div className="w-2.5 h-2.5 rounded-full bg-slate-400" /> Idle / Wait</div>
+                    </div>
+                </div>
+                <div className="relative">
+                    <div className="flex items-center justify-between gap-4 overflow-x-auto pb-6 pt-2 scrollbar-hide px-2">
+                        {Object.entries(AGENT_META).map(([id, m], idx, arr) => (
+                            <React.Fragment key={id}>
+                                <div className="flex flex-col items-center min-w-[80px] md:min-w-[100px]">
+                                    <PipelineNode
+                                        agentId={id} meta={m}
+                                        isSelected={selectedId === id}
+                                        isMonitoring={isMonitoring}
+                                        liveStatus={getLiveStatus(id)}
+                                        onClick={() => setSelectedId(id)}
+                                    />
                                 </div>
-                            )}
-                        </React.Fragment>
-                    ))}
+                                {idx < arr.length - 1 && (
+                                    <div className="flex-1 flex items-center justify-center min-w-[20px] md:min-w-[40px] mt-[-30px] md:mt-[-40px]">
+                                        <div className="flex items-center gap-1 md:gap-2">
+                                            <div className="h-0.5 w-4 md:w-8 lg:w-16 bg-gradient-to-r from-slate-100 to-slate-200" />
+                                            <ArrowRight className="w-4 h-4 text-slate-300 shrink-0" />
+                                            <div className="h-0.5 w-4 md:w-8 lg:w-16 bg-gradient-to-r from-slate-200 to-slate-100" />
+                                        </div>
+                                    </div>
+                                )}
+                            </React.Fragment>
+                        ))}
+                    </div>
                 </div>
             </Card>
 
-            {/* Detail Panel */}
+            {/* Agent Detail Panel */}
             {meta && (
-                <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-
-                    {/* Left — Identity + Live Stats + Capabilities */}
-                    <div className="lg:col-span-2 space-y-4">
-                        {/* Identity card */}
-                        <Card className={clsx('border-2', meta.accent)}>
-                            <div className="flex items-center gap-4 mb-4">
-                                <div className={clsx('w-14 h-14 rounded-2xl bg-gradient-to-br flex items-center justify-center text-white shadow-xl shrink-0', meta.gradient)}>
-                                    <meta.icon className="w-7 h-7" />
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                    {/* Sidebar: Details & Stats (4 columns) */}
+                    <div className="lg:col-span-4 space-y-6">
+                        <Card className={clsx('border-l-8 shadow-md py-6', meta.accent)}>
+                            <div className="flex items-center gap-5 mb-6">
+                                <div className={clsx('w-16 h-16 rounded-[24px] bg-gradient-to-br flex items-center justify-center text-white shadow-2xl shrink-0 ring-4 ring-white', meta.gradient)}>
+                                    <meta.icon className="w-8 h-8" />
                                 </div>
-                                <div>
-                                    <h3 className="text-lg font-bold text-slate-900">{meta.title}</h3>
-                                    <span className={clsx('text-xs font-bold px-2 py-0.5 rounded-full border', meta.badge)}>
-                                        {selectedId === 'monitoring'
-                                            ? (isMonitoring ? '● Running' : '● Stopped')
-                                            : (liveStat?.status || 'Idle')}
-                                    </span>
+                                <div className="min-w-0">
+                                    <h3 className="text-xl font-black text-black tracking-tight truncate">{meta.title}</h3>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <span className={clsx('text-[10px] font-black uppercase tracking-tighter px-2.5 py-0.5 rounded-lg border shadow-sm', meta.badge)}>
+                                            {selectedId === 'monitoring' ? (isMonitoring ? 'Scanning' : 'Stopped') : (liveStat?.status || 'Active')}
+                                        </span>
+                                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest whitespace-nowrap">Agent ID: {selectedId}</span>
+                                    </div>
                                 </div>
                             </div>
-                            <p className="text-sm text-slate-600 leading-relaxed">{meta.description}</p>
+                            <p className="text-sm text-black leading-relaxed font-bold">{meta.description}</p>
                         </Card>
 
-                        {/* Live metric tiles */}
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-2 gap-4">
                             {stats.map((s, i) => <StatTile key={i} label={s.label} value={s.value} />)}
                         </div>
 
-                        {/* Capabilities */}
-                        <Card title="Core Capabilities">
-                            <ul className="space-y-2.5 mt-2">
+                        <Card title="Agent Intelligence & Capabilities" className="border-2 border-slate-100">
+                            <ul className="space-y-4 mt-4">
                                 {meta.capabilities.map((cap, i) => (
-                                    <li key={i} className="flex items-start gap-2.5 text-sm text-slate-700">
-                                        <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                                    <li key={i} className="flex items-start gap-3 text-sm text-black font-bold group">
+                                        <div className="bg-emerald-50 p-1 rounded-lg border border-emerald-100 shrink-0 mt-0.5 transition-colors group-hover:bg-emerald-100">
+                                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                                        </div>
                                         {cap}
                                     </li>
                                 ))}
@@ -457,154 +459,110 @@ const Agents = () => {
                         </Card>
                     </div>
 
-                    {/* Right — Activity Log + Monitoring Controls */}
-                    <div className="lg:col-span-3 space-y-4">
-
-                        {/* Activity Log */}
-                        <Card noPadding className="overflow-hidden">
-                            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                                <h4 className="font-semibold text-slate-900 flex items-center gap-2">
-                                    <Database className="w-4 h-4 text-slate-400" />
-                                    Live Activity Log
-                                    <span className="text-xs font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200 ml-1">RF Scored</span>
-                                </h4>
-                                <button onClick={fetchActivity}
-                                    className="text-xs text-slate-400 hover:text-primary flex items-center gap-1 font-semibold">
-                                    <RefreshCw className={clsx('w-3 h-3', loadingActivity && 'animate-spin')} /> Refresh
-                                </button>
-                            </div>
-                            <div className="divide-y divide-slate-50 max-h-80 overflow-y-auto">
-                                {loadingActivity && liveActivity.length === 0 ? (
-                                    <div className="p-8 text-center text-slate-400 text-sm">Loading live activity from DB…</div>
-                                ) : agentActivity.length === 0 ? (
-                                    <div className="p-8 text-center text-slate-400 text-sm">
-                                        No processed transactions yet. Click <b>Batch Scan</b> or <b>Start Monitoring</b> to begin.
-                                    </div>
-                                ) : (
-                                    agentActivity.map((log, i) => <LogRow key={i} log={log} />)
-                                )}
-                            </div>
-                            <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between">
-                                <span className="text-xs text-slate-400">
-                                    Powered by <span className="font-mono text-slate-600">random_forest_model.pkl</span>
-                                </span>
-                                <span className="text-xs text-slate-400">{liveActivity.length} recent events</span>
-                            </div>
-                        </Card>
-
-                        {/* Monitoring Agent — control panel */}
-                        {selectedId === 'monitoring' && (
-                            <Card className={clsx('border-2 transition-colors', isMonitoring ? 'border-emerald-200 bg-emerald-50/30' : 'border-slate-200')}>
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <h4 className="font-bold text-slate-900">Autonomous Loop Control</h4>
-                                        <p className="text-sm text-slate-500 mt-0.5">
-                                            {isMonitoring
-                                                ? 'Loop is active — polling MongoDB every 30s. Each record runs through RF → RAG → LLM.'
-                                                : 'Loop is inactive. Start monitoring or use Batch Scan (20 records).'}
-                                        </p>
-                                    </div>
-                                    <button onClick={handleToggleMonitoring}
-                                        className={clsx(
-                                            'flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all',
-                                            isMonitoring ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-emerald-600 text-white hover:bg-emerald-700'
-                                        )}>
-                                        {isMonitoring ? <Square className="w-4 h-4 fill-current" /> : <PlayCircle className="w-4 h-4" />}
-                                        {isMonitoring ? 'Stop' : 'Start'}
-                                    </button>
+                    {/* Main: Logs & Results (8 columns) */}
+                    <div className="lg:col-span-8 space-y-6">
+                        {/* High-Level Intelligence Summaries (Final Outputs) */}
+                        {latestResult && (
+                            <Card className="border-2 border-primary/20 bg-primary/5 shadow-xl relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                                    <ShieldCheck className="w-32 h-32 text-primary rotate-12" />
                                 </div>
-                                {/* Real scanned % progress */}
-                                <div className="mt-5 space-y-2">
-                                    <div className="flex justify-between text-xs font-semibold text-slate-600">
-                                        <span>DB Scan Progress</span>
-                                        <span>{totalProcessed.toLocaleString()} / {totalTxns.toLocaleString()} ({scannedPct}%)</span>
+                                <div className="flex items-center justify-between mb-5 relative z-10">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2.5 bg-primary text-white rounded-xl shadow-lg ring-4 ring-primary/10">
+                                            <FileBarChart className="w-5 h-5" />
+                                        </div>
+                                        <div>
+                                            <h4 className="font-black text-black text-lg tracking-tight">Intelligence Output</h4>
+                                            <div className="flex items-center gap-2 mt-0.5">
+                                                <span className="text-[10px] font-black text-primary bg-white px-2 py-0.5 rounded-lg border border-primary/20 shadow-sm">FINAL REPORT</span>
+                                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">Verified by Reporting Agent</span>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                                        <div className={clsx('h-2.5 rounded-full transition-all duration-700', isMonitoring ? 'bg-emerald-500' : 'bg-slate-400')}
-                                            style={{ width: `${scannedPct}%` }} />
+                                    <div className="text-right">
+                                        <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">{latestResult.time}</p>
+                                        <p className="text-[11px] font-bold text-primary mt-0.5">Live Pipeline Output</p>
                                     </div>
-                                    <p className="text-xs text-slate-400">
-                                        {totalPending.toLocaleString()} pending · {totalProcessed.toLocaleString()} processed
+                                </div>
+                                <div className="bg-white/80 backdrop-blur-sm border-2 border-slate-200/50 p-6 rounded-2xl relative z-10 shadow-inner group-hover:bg-white transition-colors duration-300 shadow-md">
+                                    <p className="text-black text-sm leading-relaxed font-bold">
+                                        {latestResult.explanation}
                                     </p>
                                 </div>
-                            </Card>
-                        )}
-
-                        {/* Policy RAG Agent — index summary */}
-                        {selectedId === 'policy' && (
-                            <Card className="border-2 border-blue-100 bg-blue-50/20">
-                                <div className="flex items-center gap-3 mb-3">
-                                    <Hash className="w-5 h-5 text-primary" />
-                                    <h4 className="font-bold text-slate-900">SHA-256 Deduplication Active</h4>
-                                </div>
-                                <p className="text-sm text-slate-600">
-                                    Each PDF's full text is hashed before embedding. Re-uploading the same document is instantly detected — no duplicate embeddings are generated. Only new or changed content triggers the Ollama embedding pipeline.
-                                </p>
-                                <div className="mt-3 grid grid-cols-2 gap-3 pt-3 border-t border-blue-100">
-                                    <div className="text-center">
-                                        <p className="text-xl font-bold text-slate-900">{getLiveStatus('policy')?.policies_indexed ?? 0}</p>
-                                        <p className="text-xs text-slate-500">Policies Unique</p>
+                                <div className="mt-5 flex items-center justify-between relative z-10 px-1">
+                                    <div className="flex items-center gap-4 text-[10px] font-black text-slate-400">
+                                        <span className="flex items-center gap-1.5"><Brain className="w-3.5 h-3.5" /> Gemini Reasoning</span>
+                                        <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> High Precision</span>
                                     </div>
-                                    <div className="text-center">
-                                        <p className="text-xl font-bold text-slate-900">{(getLiveStatus('policy')?.total_chunks ?? 0).toLocaleString()}</p>
-                                        <p className="text-xs text-slate-500">Vectors in ChromaDB</p>
-                                    </div>
+                                    <button className="text-[11px] font-black text-primary hover:text-primary/80 transition-colors uppercase tracking-widest flex items-center gap-1.5 p-2 px-4 bg-white rounded-xl border border-primary/10 hover:shadow-md">
+                                        Full Violation Audit <ArrowRight className="w-3.5 h-3.5" />
+                                    </button>
                                 </div>
                             </Card>
                         )}
 
-                        {/* Risk Detector — RF model info */}
-                        {selectedId === 'violation' && (
-                            <Card className="border-2 border-amber-100 bg-amber-50/20">
-                                <div className="flex items-center gap-3 mb-3">
-                                    <Brain className="w-5 h-5 text-amber-600" />
-                                    <h4 className="font-bold text-slate-900">RandomForest Model Details</h4>
+                        {/* Telemetry/Log Feed */}
+                        <Card noPadding className="overflow-hidden border-2 border-slate-100 shadow-md">
+                            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-white">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-slate-50 border border-slate-100 rounded-xl">
+                                        <Database className="w-4 h-4 text-slate-400" />
+                                    </div>
+                                    <div>
+                                        <h4 className="font-black text-black tracking-tight">Agent Activity Feed</h4>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Real-time Pipeline Telemetry</p>
+                                    </div>
                                 </div>
-                                <div className="grid grid-cols-2 gap-2 text-xs">
-                                    {[
-                                        ['Model File', 'random_forest_model.pkl'],
-                                        ['Loader', 'sklearn · joblib'],
-                                        ['Features', '20 (numeric + one-hot)'],
-                                        ['Output', 'predict_proba class 1'],
-                                        ['Trained On', 'AML transactions dataset'],
-                                        ['Threshold', 'prob ≥ 0.70 → violation'],
-                                    ].map(([k, v]) => (
-                                        <div key={k} className="bg-white border border-amber-100 rounded-lg p-2">
-                                            <p className="text-slate-400 font-medium">{k}</p>
-                                            <p className="font-mono text-slate-700 font-bold truncate">{v}</p>
+                                <div className="flex items-center gap-4">
+                                    {isMonitoring && (
+                                        <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border border-emerald-100 rounded-lg shadow-sm">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                            <span className="text-[10px] font-black text-emerald-700 uppercase tracking-tighter">Event Stream Connected</span>
                                         </div>
-                                    ))}
+                                    )}
+                                    <button onClick={fetchActivity}
+                                        className="p-2 hover:bg-slate-50 rounded-xl transition-colors border border-transparent hover:border-slate-100 shadow-none hover:shadow-sm">
+                                        <RefreshCw className={clsx('w-4 h-4 text-slate-400', loadingActivity && 'animate-spin')} />
+                                    </button>
                                 </div>
-                            </Card>
-                        )}
-
-                        {/* Explanation Agent — RAG + LLM info */}
-                        {selectedId === 'explanation' && (
-                            <Card className="border-2 border-emerald-100 bg-emerald-50/20">
-                                <div className="flex items-center gap-3 mb-3">
-                                    <BookOpen className="w-5 h-5 text-emerald-600" />
-                                    <h4 className="font-bold text-slate-900">RAG + LLM Pipeline</h4>
+                            </div>
+                            <div className="divide-y divide-slate-50 max-h-[500px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+                                {loadingActivity && liveActivity.length === 0 ? (
+                                    <div className="p-16 text-center">
+                                        <div className="inline-block p-4 rounded-full bg-primary/5 animate-pulse mb-4">
+                                            <Zap className="w-8 h-8 text-primary/40" />
+                                        </div>
+                                        <p className="text-slate-400 text-sm font-bold uppercase tracking-widest leading-relaxed">Connecting to intelligence stream…</p>
+                                    </div>
+                                ) : liveActivity.length === 0 ? (
+                                    <div className="p-16 text-center">
+                                        <div className="inline-block p-4 rounded-full bg-slate-50 mb-4">
+                                            <Database className="w-8 h-8 text-slate-200" />
+                                        </div>
+                                        <p className="text-slate-400 text-sm font-bold uppercase tracking-widest leading-relaxed">
+                                            No telemetry data available for <span className="text-slate-900 font-black">{selectedId}</span><br />
+                                            <span className="text-[10px] opacity-60 mt-2 block font-medium uppercase">Start pipeline monitoring to generate live events</span>
+                                        </p>
+                                    </div>
+                                ) : (
+                                    liveActivity.map((log, i) => <LogRow key={i} log={log} />)
+                                )}
+                            </div>
+                            <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/30">
+                                <div className="flex items-center gap-2 group cursor-help">
+                                    <div className="p-1 bg-white border border-slate-200 rounded-md">
+                                        <Brain className="w-3.5 h-3.5 text-slate-400 group-hover:text-primary transition-colors" />
+                                    </div>
+                                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                                        Distributed Agent Reasoning · <span className="text-slate-400">Gemini 1.5 Pro</span>
+                                    </span>
                                 </div>
-                                <div className="space-y-2 text-sm text-slate-600">
-                                    <div className="flex items-center gap-2">
-                                        <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 font-bold text-xs flex items-center justify-center shrink-0">1</span>
-                                        Query ChromaDB: semantic search with transaction type
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 font-bold text-xs flex items-center justify-center shrink-0">2</span>
-                                        Retrieve top-3 policy chunks (cosine similarity)
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 font-bold text-xs flex items-center justify-center shrink-0">3</span>
-                                        Send structured prompt to Ollama (llama3, stream=False)
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 font-bold text-xs flex items-center justify-center shrink-0">4</span>
-                                        Store generated explanation in violations collection
-                                    </div>
-                                </div>
-                            </Card>
-                        )}
+                                <span className="text-[10px] font-black text-slate-400 bg-white px-3 py-1.5 rounded-xl border border-slate-200">
+                                    FEED LOGS: {liveActivity.length}
+                                </span>
+                            </div>
+                        </Card>
                     </div>
                 </div>
             )}

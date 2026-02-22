@@ -6,7 +6,7 @@ import clsx from 'clsx';
 const Toggle = ({ label, description, checked, onChange }) => (
     <div className="flex items-center justify-between py-4">
         <div>
-            <p className="text-sm font-medium text-slate-900">{label}</p>
+            <p className="text-sm font-black text-black">{label}</p>
             {description && <p className="text-xs text-slate-500 mt-0.5">{description}</p>}
         </div>
         <button
@@ -48,7 +48,7 @@ const Settings = () => {
 
     return (
         <div className="space-y-6 animate-fade-in">
-            <h2 className="text-2xl font-bold text-slate-900">System Settings</h2>
+            <h2 className="text-2xl font-black text-black">System Settings</h2>
 
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                 {/* Sidebar Navigation */}
@@ -83,7 +83,7 @@ const Settings = () => {
                                     AU
                                 </div>
                                 <div>
-                                    <h3 className="text-lg font-bold text-slate-900">Admin User</h3>
+                                    <h3 className="text-lg font-black text-black">Admin User</h3>
                                     <p className="text-slate-500 text-sm">Super Administrator</p>
                                     <button className="mt-2 text-primary text-xs font-medium hover:underline">Change Avatar</button>
                                 </div>
@@ -139,7 +139,7 @@ const Settings = () => {
                                     onChange={(v) => setSecurity({ ...security, mfa: v })}
                                 />
                                 <div className="py-4">
-                                    <label className="block text-sm font-medium text-slate-900 mb-1">Session Timeout</label>
+                                    <label className="block text-sm font-black text-black mb-1">Session Timeout</label>
                                     <p className="text-xs text-slate-500 mb-3">Automatically log out after a period of inactivity</p>
                                     <select
                                         value={security.sessionTimeout}

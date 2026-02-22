@@ -57,11 +57,11 @@ const AuditLogs = () => {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                    <h2 className="text-2xl font-black text-black flex items-center gap-2">
                         <ClipboardList className="w-6 h-6 text-primary" />
                         Audit Logs
                     </h2>
-                    <p className="text-slate-500 text-sm mt-1">Immutable record of all AI-processed transactions</p>
+                    <p className="text-slate-600 text-sm mt-1 font-semibold">Immutable record of all AI-processed transactions</p>
                 </div>
                 <div className="flex gap-3">
                     <button onClick={() => fetchLogs()}
@@ -86,8 +86,8 @@ const AuditLogs = () => {
                             <s.icon className="w-5 h-5" />
                         </div>
                         <div>
-                            <p className="text-xs text-slate-500 font-medium">{s.label}</p>
-                            <p className="text-2xl font-bold text-slate-900">{loading ? '…' : s.value}</p>
+                            <p className="text-xs text-slate-600 font-bold uppercase tracking-wider">{s.label}</p>
+                            <p className="text-2xl font-black text-black">{loading ? '…' : s.value}</p>
                         </div>
                     </Card>
                 ))}
@@ -151,14 +151,14 @@ const AuditLogs = () => {
                                     'border-b border-slate-50 hover:bg-slate-50 transition-colors text-sm',
                                     log.flagged && 'bg-red-50/30'
                                 )}>
-                                    <td className="px-4 py-3 font-mono text-xs text-primary font-semibold">{log.id}</td>
-                                    <td className="px-4 py-3 text-slate-600 font-medium">{log.account || 'N/A'}</td>
-                                    <td className="px-4 py-3 text-slate-700">{log.type || 'N/A'}</td>
-                                    <td className="px-4 py-3 text-slate-700 font-semibold">
+                                    <td className="px-4 py-3 font-mono text-xs text-primary font-black">{log.id}</td>
+                                    <td className="px-4 py-3 text-black font-bold">{log.account || 'N/A'}</td>
+                                    <td className="px-4 py-3 text-black font-black">{log.type || 'N/A'}</td>
+                                    <td className="px-4 py-3 text-black font-black">
                                         ${typeof log.amount === 'number' ? log.amount.toLocaleString() : log.amount || 'N/A'}
                                     </td>
                                     <td className="px-4 py-3">
-                                        <span className="font-bold text-slate-800">{log.risk_score != null ? `${Number(log.risk_score).toFixed(1)}` : '—'}</span>
+                                        <span className="font-black text-black">{log.risk_score != null ? `${Number(log.risk_score).toFixed(1)}` : '—'}</span>
                                     </td>
                                     <td className="px-4 py-3">
                                         <span className={clsx('px-2 py-0.5 rounded-full text-xs font-bold border', riskColor(log.risk_level))}>

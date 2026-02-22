@@ -23,22 +23,43 @@ class Settings(BaseSettings):
     CHROMA_DB_PATH: str = os.getenv("CHROMA_DB_PATH", "backend/db/chroma")
     EMBEDDING_MODEL_NAME: str = os.getenv("EMBEDDING_MODEL_NAME", "sentence-transformers/all-MiniLM-L6-v2")
     
-    # LLM (Ollama)
+    # LLM (Gemini)
+    GOOGLE_API_KEY: Optional[str] = os.getenv("GOOGLE_API_KEY")
+    GEMINI_MODEL_NAME: str = "gemini-1.5-flash"
+    GEMINI_EMBEDDING_MODEL: str = "models/embedding-001"
+
+    # LLM (Ollama - Keeping for backward compatibility or dual use)
     OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-    LLM_MODEL_NAME: str = os.getenv("LLM_MODEL_NAME", "llama3")
+    OLLAMA_MODEL_NAME: str = os.getenv("OLLAMA_MODEL_NAME", "llama3")
+    LLM_MODEL_NAME: Optional[str] = os.getenv("LLM_MODEL_NAME")
     
     # Security
     MASKING_ENABLED: bool = True
     SECRET_KEY: str = os.getenv("SECRET_KEY", "7038cbe22c83307f594519951666993a652e850b571694f4")
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
-    ENCRYPTION_KEY: str = os.getenv("ENCRYPTION_KEY", "L0Y3-mP5V5-8Z8C9-2X4M7-G1V6K-9B3S5-T8Q4R") # Use a valid Fernet key in prod
-    
+    CELERY_BROKER_URL: str = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
+    CELERY_RESULT_BACKEND: str = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
+
     class Config:
         env_file = "backend/.env"
         case_sensitive = True
+        extra = "ignore"
 
 settings = Settings()
+
+# Post-processing to ensure CrewAI/LiteLLM provider prefix and strip invalid "models/"
+# Propagate API keys to environment for LiteLLM/CrewAI authentication
+if settings.GOOGLE_API_KEY:
+    os.environ["GOOGLE_API_KEY"] = settings.GOOGLE_API_KEY
+if settings.GEMINI_MODEL_NAME:
+    os.environ["GEMINI_MODEL_NAME"] = settings.GEMINI_MODEL_NAME
+
+# Post-processing normalization (Lean version)
+if settings.GEMINI_MODEL_NAME:
+    settings.GEMINI_MODEL_NAME = settings.GEMINI_MODEL_NAME.replace("models/", "").replace("gemini/", "")
+    # Ensure it's gemini-1.5
+    settings.GEMINI_MODEL_NAME = settings.GEMINI_MODEL_NAME.replace("gemini-2.5", "gemini-1.5")
 
 # Setup logging configuration
 logging.basicConfig(
@@ -46,3 +67,4 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger("backend")
+logger.info(f"Final LLM Model configured: {settings.GEMINI_MODEL_NAME}")

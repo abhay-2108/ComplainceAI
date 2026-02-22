@@ -24,9 +24,9 @@ const MetricCard = ({ title, value, change, trend = 'up', icon: Icon, color }) =
             </div>
         </div>
         <div>
-            <h4 className="text-slate-500 text-xs md:text-sm font-medium truncate">{title}</h4>
-            <div className="text-xl md:text-3xl font-bold text-slate-900 mt-0.5 md:mt-1 tracking-tight">{value}</div>
-            <p className="text-[10px] md:text-xs text-slate-400 mt-0.5 md:mt-1 font-medium">vs last 7 days</p>
+            <h4 className="text-slate-600 text-xs md:text-sm font-bold truncate">{title}</h4>
+            <div className="text-xl md:text-3xl font-black text-black mt-0.5 md:mt-1 tracking-tight">{value}</div>
+            <p className="text-[10px] md:text-xs text-slate-500 mt-0.5 md:mt-1 font-bold">vs last 7 days</p>
         </div>
         {/* Decorative background element */}
         <div className={clsx("absolute -bottom-6 -right-6 w-20 h-20 md:w-32 md:h-32 rounded-full opacity-5 blur-3xl group-hover:opacity-10 transition-opacity duration-500", color)} />
@@ -111,8 +111,8 @@ const Dashboard = () => {
             {/* Header row */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h2 className="text-2xl font-bold text-slate-900">AML Command Center</h2>
-                    <p className="text-slate-500 text-sm mt-1">Live database metrics · auto-refreshes every 15s</p>
+                    <h2 className="text-2xl font-black text-black">AML Command Center</h2>
+                    <p className="text-slate-600 text-sm mt-1 font-semibold">Live database metrics · auto-refreshes every 15s</p>
                 </div>
                 <button onClick={handleBatchScan} disabled={batchRunning}
                     className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:bg-blue-800 shadow-md disabled:opacity-60">

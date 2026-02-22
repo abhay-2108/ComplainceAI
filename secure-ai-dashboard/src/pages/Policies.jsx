@@ -50,7 +50,7 @@ const PolicyCard = ({ policy }) => {
             </div>
             <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-bold text-slate-900 text-sm truncate">{policy.name || 'Unknown Policy'}</p>
+                    <p className="font-black text-black text-sm truncate">{policy.name || 'Unknown Policy'}</p>
                     <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
                         <ShieldCheck className="w-2.5 h-2.5" /> Active
                     </span>
@@ -62,7 +62,7 @@ const PolicyCard = ({ policy }) => {
                     </span>
                     <span className="flex items-center gap-1">
                         <Layers className="w-3 h-3 text-blue-400" />
-                        <span className="font-semibold text-slate-700">{chunks}</span> chunks indexed
+                        <span className="font-bold text-black">{chunks}</span> chunks indexed
                     </span>
                     <span className="flex items-center gap-1">
                         <Hash className="w-3 h-3 text-purple-400" />
@@ -141,10 +141,10 @@ const Policies = () => {
             {/* Page Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                    <h2 className="text-2xl font-black text-black flex items-center gap-2">
                         <Archive className="w-6 h-6 text-primary" /> Policy Management
                     </h2>
-                    <p className="text-slate-500 text-sm mt-1">
+                    <p className="text-slate-600 text-sm mt-1 font-semibold">
                         PDF policies are chunked, embedded once, and indexed into the RAG vector store
                     </p>
                 </div>
@@ -160,9 +160,9 @@ const Policies = () => {
                 {/* ---- LEFT: Policy Document Cards ---- */}
                 <div className="lg:col-span-2 space-y-4">
                     <div className="flex items-center justify-between">
-                        <h3 className="font-bold text-slate-800 text-lg">
+                        <h3 className="font-black text-black text-lg">
                             Policy Documents
-                            <span className="ml-2 text-sm font-normal text-slate-400">({loading ? '…' : policies.length} indexed)</span>
+                            <span className="ml-2 text-sm font-bold text-slate-500">({loading ? '…' : policies.length} indexed)</span>
                         </h3>
                         <span className="text-xs text-slate-400 flex items-center gap-1">
                             <Sparkles className="w-3 h-3 text-amber-400" />
@@ -225,7 +225,7 @@ const Policies = () => {
                                 ? <Loader2 className="w-8 h-8 text-primary animate-spin" />
                                 : <Upload className="w-8 h-8 text-primary" />}
                         </div>
-                        <h3 className="text-base font-bold text-slate-900 mb-1">
+                        <h3 className="text-base font-black text-black mb-1">
                             {uploading ? 'Generating Embeddings…' : 'Upload Policy PDF'}
                         </h3>
                         <p className="text-slate-400 text-xs">

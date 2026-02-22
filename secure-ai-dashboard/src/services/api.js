@@ -33,6 +33,16 @@ export const getViolationById = async (id) => {
     return response.data;
 };
 
+export const getViolationActivities = async (id) => {
+    const response = await api.get(`/api/violations/${id}/activities`);
+    return response.data;
+};
+
+export const reviewViolation = async (id, action, reviewer = 'Compliance Officer', notes = null) => {
+    const response = await api.post(`/api/violations/${id}/review`, { action, reviewer, notes });
+    return response.data;
+};
+
 export const getPolicies = async () => {
     const response = await api.get('/api/policies/');
     return response.data;
@@ -94,8 +104,11 @@ export const getPredictionsAnalytics = async () => {
 };
 
 // Agent live activity log
-export const getAgentActivity = async (limit = 12) => {
-    const response = await api.get(`/api/agents/activity?limit=${limit}`);
+export const getAgentActivity = async (limit = 12, agent = null) => {
+    const url = agent
+        ? `/api/agents/activity?limit=${limit}&agent=${agent}`
+        : `/api/agents/activity?limit=${limit}`;
+    const response = await api.get(url);
     return response.data;
 };
 

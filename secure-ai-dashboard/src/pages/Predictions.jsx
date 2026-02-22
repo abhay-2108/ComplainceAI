@@ -61,8 +61,8 @@ const RiskGauge = ({ score }) => {
                         strokeDasharray={`${pct * 2.51} 251`} strokeLinecap="round" />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-3xl font-bold text-slate-900">{pct}</span>
-                    <span className="text-xs text-slate-500">/ 100</span>
+                    <span className="text-3xl font-black text-black">{pct}</span>
+                    <span className="text-xs text-black font-bold">/ 100</span>
                 </div>
             </div>
             <div className="mt-2">
@@ -135,8 +135,8 @@ const PredictionSandbox = () => {
                 <div className="flex items-center gap-3 mb-5">
                     <div className="p-2 bg-purple-50 rounded-xl"><Zap className="w-5 h-5 text-purple-600" /></div>
                     <div>
-                        <h3 className="font-bold text-slate-900">RF Model Input</h3>
-                        <p className="text-xs text-slate-500">20-feature RandomForest · <span className="font-mono">random_forest_model.pkl</span></p>
+                        <h3 className="font-black text-black">RF Model Input</h3>
+                        <p className="text-xs text-black font-bold">20-feature RandomForest · <span className="font-mono">random_forest_model.pkl</span></p>
                     </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -169,8 +169,8 @@ const PredictionSandbox = () => {
                 <div className="flex items-center gap-3 mb-5">
                     <div className="p-2 bg-blue-50 rounded-xl"><ShieldAlert className="w-5 h-5 text-primary" /></div>
                     <div>
-                        <h3 className="font-bold text-slate-900">Prediction Result</h3>
-                        <p className="text-xs text-slate-500">Live inference via <span className="font-mono">POST /api/risk/predict-risk</span></p>
+                        <h3 className="font-black text-black">Prediction Result</h3>
+                        <p className="text-xs text-black font-bold">Live inference via <span className="font-mono">POST /api/risk/predict-risk</span></p>
                     </div>
                 </div>
 
@@ -198,13 +198,13 @@ const PredictionSandbox = () => {
                         <RiskGauge score={result.risk_score} />
                         <div className="grid grid-cols-2 gap-3">
                             {[
-                                { label: 'Risk Score', value: `${(result.risk_score * 100).toFixed(1)} / 100`, color: 'text-slate-900' },
+                                { label: 'Risk Score', value: `${(result.risk_score * 100).toFixed(1)} / 100`, color: 'text-black' },
                                 { label: 'Risk Level', value: result.risk_level, color: result.risk_level === 'HIGH' ? 'text-red-600' : result.risk_level === 'MEDIUM' ? 'text-amber-600' : 'text-emerald-600' },
                                 { label: 'Violation', value: result.is_violation ? 'Yes — Flagged' : 'No — Cleared', color: result.is_violation ? 'text-red-700' : 'text-emerald-700' },
                                 { label: 'Model', value: 'RandomForest (.pkl)', color: 'text-primary' },
                             ].map((s, i) => (
                                 <div key={i} className="bg-slate-50 rounded-xl p-3 border border-slate-100">
-                                    <p className="text-xs text-slate-500 font-medium">{s.label}</p>
+                                    <p className="text-xs text-black font-black">{s.label}</p>
                                     <p className={clsx('text-sm font-bold mt-0.5', s.color)}>{s.value}</p>
                                 </div>
                             ))}
@@ -252,12 +252,11 @@ const Predictions = () => {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                        <Brain className="w-6 h-6 text-primary" /> Model Analytics
+                    <h2 className="text-2xl font-black text-black flex items-center gap-2">
+                        <Target className="w-6 h-6 text-primary" />
+                        Risk Predictions
                     </h2>
-                    <p className="text-slate-500 text-sm mt-1">
-                        RandomForest predictions · real-time performance from processed transactions
-                    </p>
+                    <p className="text-slate-600 text-sm mt-1 font-semibold">AI-driven forecasts based on historical violation patterns</p>
                 </div>
                 <button onClick={() => { setLoading(true); getPredictionsAnalytics().then(d => { setData(d); setLoading(false); }); }}
                     className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-50 shadow-sm">
@@ -278,8 +277,8 @@ const Predictions = () => {
                             <s.icon className="w-5 h-5" />
                         </div>
                         <div>
-                            <p className="text-xs text-slate-500 font-medium">{s.label}</p>
-                            <p className="text-xl font-bold text-slate-900">{s.value}</p>
+                            <p className="text-xs text-slate-600 font-bold uppercase tracking-wider">{s.label}</p>
+                            <p className="text-2xl font-black text-black">{loading ? '…' : s.value}</p>
                         </div>
                     </Card>
                 ))}
@@ -293,8 +292,8 @@ const Predictions = () => {
                             <Brain className="w-6 h-6 text-primary" />
                         </div>
                         <div>
-                            <p className="font-bold text-slate-900">RandomForest Classifier · Trained Model Active</p>
-                            <p className="text-sm text-slate-600 mt-0.5">
+                            <p className="font-black text-black">RandomForest Classifier · Trained Model Active</p>
+                            <p className="text-sm text-black font-bold mt-0.5">
                                 <span className="font-mono text-xs bg-white border border-blue-200 px-1.5 py-0.5 rounded">random_forest_model.pkl</span>
                                 &nbsp;· 20 features · Trained on AML transaction dataset
                             </p>
@@ -314,7 +313,7 @@ const Predictions = () => {
                 </div>
                 {/* Feature list */}
                 <div className="mt-4 pt-4 border-t border-blue-100">
-                    <p className="text-xs font-bold text-slate-700 mb-2">Input Features (20 total)</p>
+                    <p className="text-xs font-black text-black mb-2">Input Features (20 total)</p>
                     <div className="flex flex-wrap gap-1.5">
                         {['Amount Paid', 'Amount Received', 'Amount Diff', 'From Bank', 'To Bank',
                             'Hour', 'Day of Week', 'Format: Wire', 'Format: Cash', 'Format: Cheque',

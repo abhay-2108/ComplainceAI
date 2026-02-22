@@ -18,6 +18,19 @@ class Violation(BaseModel):
     status: str
     riskScore: float
     explanation: str
+    # Rich transaction details
+    amount_paid: Optional[float] = None
+    amount_received: Optional[float] = None
+    from_bank: Optional[str] = None
+    to_bank: Optional[str] = None
+    payment_currency: Optional[str] = None
+    receiving_currency: Optional[str] = None
+    payment_format: Optional[str] = None
+    # Human review
+    review_status: Optional[str] = "pending"  # pending | resolved | escalated
+    reviewed_by: Optional[str] = None
+    review_notes: Optional[str] = None
+    review_timestamp: Optional[str] = None
 
 class Policy(BaseModel):
     id: Optional[int] = None

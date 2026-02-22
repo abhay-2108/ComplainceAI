@@ -68,44 +68,31 @@ async def get_agents_status():
 
 
 @router.get("/activity")
-async def get_agent_activity(limit: int = 12):
-    """Return the most recent processed transactions as live agent activity."""
+async def get_agent_activity(agent: str = None, limit: int = 16):
+    """Return live activity logs from the agent_activities collection."""
     try:
-        docs = await db.db.transactions.find(
-            {"is_processed": True},
-            {"transaction_id": 1, "risk_level": 1, "risk_score": 1,
-             "violation_flag": 1, "timestamp": 1, "payment_format": 1,
-             "transaction_type": 1, "_id": 0}
-        ).sort("timestamp", -1).to_list(limit)
+        # Map frontend IDs to DB agent names if necessary
+        db_agent = None
+        if agent:
+            mapping = {
+                "policy": "policy_rag_agent",
+                "violation": "violation_detector",
+                "explanation": "explanation_agent",
+                "reporting": "reporting_agent",
+                "monitoring": "monitoring"
+            }
+            db_agent = mapping.get(agent, agent)
 
-        entries = []
-        for d in docs:
-            tid        = d.get("transaction_id", "TXN-???")
-            score_raw  = d.get("risk_score", 0)
-            score      = score_raw / 100 if score_raw > 1 else score_raw
-            level      = (d.get("risk_level") or "LOW").upper()
-            flagged    = d.get("violation_flag", False)
-            ts         = str(d.get("timestamp", ""))[:16].replace("T", " ")
-            pf         = d.get("payment_format") or d.get("transaction_type", "")
-
-            if flagged:
-                event  = f"{tid} flagged — RF score {score:.2f} ({level})"
-                status = "danger" if level == "HIGH" else "warn"
-            else:
-                event  = f"{tid} cleared — RF score {score:.2f} (LOW)"
-                status = "success"
-
-            entries.append({"time": ts, "event": event, "status": status, "agent": "violation"})
-
-            if flagged:
-                entries.append({
-                    "time": ts,
-                    "event": f"RAG policy context retrieved for {pf or 'transaction'} type",
-                    "status": "info",
-                    "agent": "explanation"
-                })
-
-        return entries[:limit]
+        logs = await db.get_agent_activities(agent_id=db_agent, limit=limit)
+        
+        # Format for frontend
+        for log in logs:
+            if "_id" in log:
+                log["_id"] = str(log["_id"])
+            if "time" not in log and "timestamp" in log:
+                log["time"] = log["timestamp"][:16].replace("T", " ")
+        
+        return logs
     except Exception as e:
         logger.error(f"Activity fetch error: {e}")
         return []

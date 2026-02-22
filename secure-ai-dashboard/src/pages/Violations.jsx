@@ -75,11 +75,11 @@ const Violations = () => {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                    <h2 className="text-2xl font-black text-black flex items-center gap-2">
                         <AlertOctagon className="w-6 h-6 text-red-500" />
                         Violations
                     </h2>
-                    <p className="text-slate-500 text-sm mt-1">
+                    <p className="text-slate-600 text-sm mt-1 font-semibold">
                         {loading ? 'Loading…' : `${violations.length} flagged transactions · refreshes every 15s`}
                     </p>
                 </div>
@@ -107,8 +107,8 @@ const Violations = () => {
                             <s.icon className="w-4 h-4" />
                         </div>
                         <div>
-                            <p className="text-xs text-slate-500 font-medium">{s.label}</p>
-                            <p className="text-xl font-bold text-slate-900">{loading ? '…' : s.value}</p>
+                            <p className="text-xs text-slate-600 font-bold uppercase tracking-wider">{s.label}</p>
+                            <p className="text-xl font-black text-black">{loading ? '…' : s.value}</p>
                         </div>
                     </Card>
                 ))}
@@ -165,9 +165,9 @@ const Violations = () => {
                                                 ? <ChevronDown className="w-4 h-4 text-primary" />
                                                 : <ChevronRight className="w-4 h-4 text-slate-400" />}
                                         </td>
-                                        <td className="px-4 py-4 font-mono text-xs text-primary font-semibold">{v.id}</td>
-                                        <td className="px-4 py-4 text-sm text-slate-600 font-medium">{v.source || 'N/A'}</td>
-                                        <td className="px-4 py-4 text-sm text-slate-700">{v.type || 'N/A'}</td>
+                                        <td className="px-4 py-4 font-mono text-xs text-primary font-black">{v.id}</td>
+                                        <td className="px-4 py-4 text-sm text-black font-bold">{v.source || 'N/A'}</td>
+                                        <td className="px-4 py-4 text-sm text-black font-black">{v.type || 'N/A'}</td>
                                         <td className="px-4 py-4 text-xs text-slate-500">
                                             {v.date ? String(v.date).slice(0, 10) : 'N/A'}
                                         </td>
@@ -194,10 +194,10 @@ const Violations = () => {
                                                     </div>
                                                     <div className="flex-1">
                                                         <div className="flex items-center gap-2 mb-2">
-                                                            <h4 className="font-bold text-slate-800 text-sm">AI Compliance Reasoning</h4>
-                                                            <span className="text-xs bg-blue-100 text-primary px-2 py-0.5 rounded-full font-semibold">Explanation Agent · Llama3</span>
+                                                            <h4 className="font-black text-black text-sm">AI Compliance Reasoning</h4>
+                                                            <span className="text-xs bg-blue-100 text-primary px-2 py-0.5 rounded-full font-bold">Explanation Agent · Llama3</span>
                                                         </div>
-                                                        <div className="bg-white border border-blue-100 rounded-xl p-4 text-sm text-slate-700 leading-relaxed shadow-sm">
+                                                        <div className="bg-white border border-blue-100 rounded-xl p-4 text-sm text-black font-semibold leading-relaxed shadow-sm">
                                                             {v.explanation || 'This transaction was flagged by the automated risk engine. Detailed AI analysis is pending for this record.'}
                                                         </div>
                                                         <div className="flex items-center gap-3 mt-3">

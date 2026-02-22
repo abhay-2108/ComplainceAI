@@ -9,7 +9,7 @@ class VectorStore:
     def __init__(self):
         self.client = chromadb.PersistentClient(path=settings.CHROMA_DB_PATH)
         self.collection = self.client.get_or_create_collection(
-            name="compliance_policies"
+            name="compliance_policies_v2"
         )
         logger.info(f"ChromaDB initialized at {settings.CHROMA_DB_PATH}")
 

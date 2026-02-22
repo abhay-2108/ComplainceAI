@@ -1,4 +1,5 @@
 import logging
+import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.config.settings import settings
@@ -8,6 +9,8 @@ from backend.core.startup import start_app_handler, stop_app_handler
 
 # Setup logging
 logger = logging.getLogger(__name__)
+
+app_loop = None
 
 def create_app() -> FastAPI:
     app = FastAPI(
@@ -19,6 +22,8 @@ def create_app() -> FastAPI:
     # Register Lifespan Handlers
     @app.on_event("startup")
     async def startup_event():
+        global app_loop
+        app_loop = asyncio.get_running_loop()
         await start_app_handler(app)
 
     @app.on_event("shutdown")

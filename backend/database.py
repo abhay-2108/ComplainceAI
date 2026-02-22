@@ -15,6 +15,23 @@ class Database:
             self.client.close()
             print("MongoDB connection closed.")
 
+    def insert_agent_activity_sync(self, activity: dict):
+        """Synchronous version for Celery workers or threads."""
+        try:
+            from pymongo import MongoClient
+            if "timestamp" not in activity:
+                import datetime
+                activity["timestamp"] = datetime.datetime.utcnow().isoformat()
+            
+            client = MongoClient(settings.MONGODB_URL)
+            db = client[settings.DATABASE_NAME]
+            db.agent_activity.insert_one(activity)
+            client.close()
+            return True
+        except Exception as e:
+            print(f"Sync log failed: {e}")
+            return False
+
     async def create_indexes(self):
         if self.db is not None:
             await self.db.transactions.create_index("transaction_id", unique=True)
@@ -56,8 +73,24 @@ class Database:
     async def get_all_transactions(self, limit: int = 100):
         return await self.db.transactions.find().to_list(limit)
 
-    async def insert_transaction(self, transaction: dict):
-        return await self.db.transactions.insert_one(transaction)
+    async def insert_agent_activity(self, activity: dict):
+        """Log a specific step or action taken by an agent."""
+        if "timestamp" not in activity:
+            import datetime
+            activity["timestamp"] = datetime.datetime.utcnow().isoformat()
+        return await self.db.agent_activity.insert_one(activity)
+
+    async def get_agent_activities(self, agent_id: str = None, transaction_id: str = None, limit: int = 50):
+        """Fetch logs for a specific agent, transaction, or all agents."""
+        query = {}
+        if agent_id: query["agent"] = agent_id
+        if transaction_id: query["transaction_id"] = transaction_id
+        return await self.db.agent_activity.find(query).sort("timestamp", -1).to_list(limit)
+
+    async def get_violation_explanation(self, transaction_id: str):
+        """Fetch the final AI explanation for a specific violation."""
+        res = await self.db.violations.find_one({"transaction_id": transaction_id}, {"explanation": 1, "_id": 0})
+        return res.get("explanation") if res else None
 
     async def get_metrics(self):
         try:
@@ -180,11 +213,34 @@ class Database:
                 {"$project": {"account": "$_id", "violations": 1, "total_amount": 1, "_id": 0}}
             ]).to_list(5)
 
+            # Recent AI Narratives (Final Agent Responses)
+            recent_narratives = await self.db.agent_activity.find(
+                {"agent": "reporting_agent", "explanation": {"$ne": None}},
+                {"transaction_id": 1, "explanation": 1, "timestamp": 1, "_id": 0}
+            ).sort("timestamp", -1).limit(6).to_list(6)
+
+            # Global Metrics
+            total_scanned = await self.db.transactions.count_documents({"is_processed": True})
+            avg_risk = 0
+            if total_scanned > 0:
+                risk_agg = await self.db.transactions.aggregate([
+                    {"$match": {"is_processed": True, "risk_score": {"$ne": None}}},
+                    {"$group": {"_id": None, "avg": {"$avg": "$risk_score"}}}
+                ]).to_list(1)
+                if risk_agg:
+                    avg_risk = risk_agg[0]["avg"]
+
             return {
                 "risk_distribution": risk_dist,
                 "daily_trend": daily_trend,
                 "risk_levels": risk_levels,
-                "top_accounts": top_accounts
+                "top_accounts": top_accounts,
+                "recent_narratives": recent_narratives,
+                "stats": {
+                    "avg_risk_score": round(avg_risk, 1),
+                    "pipeline_coverage": f"{min(100, (total_scanned / 1000) * 100):.1f}%" if total_scanned < 1000 else "100%",
+                    "total_scanned": total_scanned
+                }
             }
         except Exception as e:
             print(f"Error in get_reports_data: {e}")
