@@ -1,0 +1,69 @@
+# ===========================
+# Environment & Secrets
+# ===========================
+.env
+.env.local
+.env.production
+.env.*.local
+backend/.env
+secure-ai-dashboard/.env
+
+# ===========================
+# Python
+# ===========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+venv/
+.venv/
+backend/venv/
+
+# ===========================
+# Node / React
+# ===========================
+node_modules/
+secure-ai-dashboard/node_modules/
+secure-ai-dashboard/dist/
+secure-ai-dashboard/build/
+
+# ===========================
+# IDE & OS
+# ===========================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+Thumbs.db
+.DS_Store
+
+# ===========================
+# Database & Chroma (local)
+# ===========================
+backend/db/chroma/
+*.sqlite3
+
+# ===========================
+# ML Models (large binaries)
+# ===========================
+*.pkl
+
+# ===========================
+# Debug / Temp Scripts
+# ===========================
+backfill_explanations.py
+probe_gemini.py
+probe_output.txt
+models_list.txt
+models_list_utf8.txt
+check_db.py
+
+# ===========================
+# Logs
+# ===========================
+*.log
+celery*.pid
