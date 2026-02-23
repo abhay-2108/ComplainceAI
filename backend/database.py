@@ -104,7 +104,7 @@ class Database:
             if records_scanned > 0:
                 health_score = max(0, 100 - (total_violations / records_scanned * 100))
 
-            # AML Specific: Total Volume and Laundering Volume
+            # AML Specific: Total Volume and Laundering Vol
             vol_pipeline = [
                 {"$group": {
                     "_id": None,
